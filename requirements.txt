@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+httpx
+openai
+serpapi
+alpha_vantage
+yfinance
+matplotlib
+python-dotenv
+google-search-results
+mcp[cli]
