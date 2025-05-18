@@ -145,7 +145,7 @@ SERPAPI_API_KEY=your_serpapi_key
      ```bash
      mcp run server.py
      ```
-   - The server will start and listen for MCP (Modular Command Platform) requests via stdio.
+   - The server will start and listen for MCP requests via stdio.
 
 8. **Connect from Claude Desktop**
    - In Claude Desktop, add a new custom MCP server connection.
