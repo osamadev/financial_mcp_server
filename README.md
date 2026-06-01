@@ -1,6 +1,19 @@
 # Financial MCP Server
 
+[![Deploy to Azure Container Apps](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)
+
 A custom Model Context Protocol (MCP) server for advanced financial analysis, stock monitoring, and real-time market intelligence. This server provides a suite of tools and API endpoints for portfolio management, market summaries, stock alerts, and contextual financial insights, designed for seamless integration with Claude Desktop and other MCP-compatible clients.
+
+---
+
+## One-Click Cloud Deploy
+
+Use the deployment buttons and platform manifests in [`DEPLOY.md`](DEPLOY.md)
+to launch a remotely hosted MCP endpoint over HTTPS (`https://.../mcp`) on
+Azure, Render, or Heroku.
+
+- Local default: `MCP_TRANSPORT=stdio` (Claude Desktop / local MCP clients)
+- Cloud default in container manifests: `MCP_TRANSPORT=streamable-http`
 
 ---
 
@@ -88,9 +101,16 @@ requirements.txt             # Python dependencies
 Set these in a `.env` file or your system environment:
 
 ```
+MCP_TRANSPORT=stdio
+HOST=0.0.0.0
+PORT=8000
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_CHAT_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
+OLLAMA_HOST=http://localhost:11434
+OLLAMA_MODEL=mistral
+# Optional persistent path for portfolio file in cloud
+# PORTFOLIO_FILE=/data/user_portfolio.json
 ```
 
 ---

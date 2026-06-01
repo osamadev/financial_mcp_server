@@ -8,6 +8,7 @@ from services.alerts import check_alerts, check_trading_opportunities, send_trad
 from services.market_summary import get_market_wrap
 import logging
 import json
+import os
 import sys
 from dotenv import load_dotenv
 
@@ -25,7 +26,9 @@ logger = logging.getLogger(__name__)
 # Load environment variables
 load_dotenv()
 
-mcp = FastMCP("Financial-MCP-Server")
+HOST = os.getenv("HOST", "0.0.0.0")
+PORT = int(os.getenv("PORT", "8000"))
+mcp = FastMCP("Financial-MCP-Server", host=HOST, port=PORT)
 
 @mcp.tool()
 async def financial_context(query: str) -> dict:
@@ -240,10 +243,23 @@ async def single_stock_alert(ticker: str) -> dict:
         return {"alerts": [f"⚠️ Error: {str(e)}"]}
 
 if __name__ == "__main__":
+    # Transport is selected via env var so the SAME file works locally
+    # (Claude Desktop, stdio) and in the cloud (remote, streamable-http).
+    #   MCP_TRANSPORT=stdio            -> local Claude Desktop (default)
+    #   MCP_TRANSPORT=streamable-http  -> remote HTTP server on $HOST:$PORT/mcp
+    transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
+    if transport in ("http", "streamable-http", "streamable_http"):
+        transport = "streamable-http"
+    elif transport not in ("stdio", "sse"):
+        transport = "stdio"
+
     logger.debug("Starting Financial-MCP-Server...")
     try:
-        logger.info("Initializing MCP server with stdio transport")
-        mcp.run(transport="stdio")
+        if transport == "streamable-http":
+            logger.info(f"Initializing MCP server (streamable-http) on {HOST}:{PORT}/mcp")
+        else:
+            logger.info(f"Initializing MCP server with {transport} transport")
+        mcp.run(transport=transport)
         logger.debug("MCP server started successfully")
     except json.JSONDecodeError as je:
         logger.error(f"JSON decode error: {str(je)}", exc_info=True)

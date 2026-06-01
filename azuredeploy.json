@@ -1,0 +1,119 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Deploys the Financial MCP Server to Azure Container Apps using the prebuilt public image from GHCR. Exposes the MCP endpoint over HTTPS at /mcp."
+  },
+  "parameters": {
+    "containerAppName": {
+      "type": "string",
+      "defaultValue": "financial-mcp-server",
+      "metadata": { "description": "Name of the Container App (also used to name the environment and logs workspace)." }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": { "description": "Azure region. Defaults to the resource group's region." }
+    },
+    "image": {
+      "type": "string",
+      "defaultValue": "ghcr.io/osamadev/financial_mcp_server:latest",
+      "metadata": { "description": "Container image to deploy. Defaults to the public GHCR image published by CI." }
+    },
+    "serpApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. SerpAPI key for news/market data tools." }
+    },
+    "telegramBotToken": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. Telegram bot token for alerts." }
+    },
+    "telegramUserId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. Telegram chat/user id for alerts." }
+    },
+    "ollamaHost": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. Reachable Ollama URL for the news summarizer (e.g. https://my-ollama:11434)." }
+    }
+  },
+  "variables": {
+    "envName": "[format('{0}-env', parameters('containerAppName'))]",
+    "lawName": "[format('{0}-logs', parameters('containerAppName'))]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('lawName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": { "name": "PerGB2018" },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2024-03-01",
+      "name": "[variables('envName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+      ],
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName')), '2023-09-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName')), '2023-09-01').primarySharedKey]"
+          }
+        }
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2024-03-01",
+      "name": "[parameters('containerAppName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]"
+      ],
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('envName'))]",
+        "configuration": {
+          "activeRevisionsMode": "Single",
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "auto",
+            "allowInsecure": false,
+            "stickySessions": { "affinity": "sticky" },
+            "traffic": [ { "latestRevision": true, "weight": 100 } ]
+          },
+          "secrets": "[concat(if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'serpapi-key', 'value', parameters('serpApiKey')))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'telegram-bot-token', 'value', parameters('telegramBotToken')))))]"
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "financial-mcp-server",
+              "image": "[parameters('image')]",
+              "resources": { "cpu": "[json('0.5')]", "memory": "1.0Gi" },
+              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000')), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))))]"
+            }
+          ],
+          "scale": { "minReplicas": 1, "maxReplicas": 1 }
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "mcpEndpoint": {
+      "type": "string",
+      "value": "[format('https://{0}/mcp', reference(resourceId('Microsoft.App/containerApps', parameters('containerAppName')), '2024-03-01').configuration.ingress.fqdn)]"
+    }
+  }
+}

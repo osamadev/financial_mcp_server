@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: financial-mcp-server
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    autoDeploy: false   # recommended for a public "Deploy to Render" button repo
+    healthCheckPath: /mcp
+    envVars:
+      - key: MCP_TRANSPORT
+        value: streamable-http
+      - key: HOST
+        value: 0.0.0.0
+      # Render injects PORT automatically; server.py reads it.
+      - key: SERPAPI_API_KEY
+        sync: false
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_USER_ID
+        sync: false
+      - key: OLLAMA_HOST
+        sync: false
+      - key: OLLAMA_MODEL
+        sync: false

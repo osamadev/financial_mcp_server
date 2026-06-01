@@ -1,0 +1,88 @@
+name: Build, Test & Publish Docker image
+
+# Publishes a multi-arch image to GitHub Container Registry (GHCR) so anyone
+# can run the server on any cloud:  docker run ghcr.io/<owner>/financial_mcp_server
+on:
+  push:
+    branches: ["main"]
+    tags: ["v*"]
+  release:
+    types: [published]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}   # already lowercase: osamadev/financial_mcp_server
+
+jobs:
+  # 1) Build the image and prove it actually boots + answers MCP (no secrets needed)
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t fin-mcp:ci .
+
+      - name: Boot server and verify MCP initialize handshake
+        run: |
+          docker run -d --name fin -p 8000:8000 -e MCP_TRANSPORT=streamable-http fin-mcp:ci
+          ok=""
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8000/mcp \
+              -H "Content-Type: application/json" \
+              -H "Accept: application/json, text/event-stream" \
+              -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' || true)
+            if [ "$code" = "200" ]; then ok=1; echo "MCP initialize -> HTTP 200"; break; fi
+            sleep 2
+          done
+          docker logs fin || true
+          if [ -z "$ok" ]; then echo "Server did not return HTTP 200"; exit 1; fi
+
+  # 2) Publish to GHCR (only on pushes to main / tags / releases, after tests pass)
+  publish:
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=sha,format=short
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push (amd64 + arm64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

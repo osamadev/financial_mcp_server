@@ -103,6 +103,7 @@ celerybeat.pid
 .env
 .env.*
 .venv
+!.env.example
 
 # Spyder project settings
 .spyderproject

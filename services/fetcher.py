@@ -10,10 +10,9 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Get API key from environment
-SERPAPI_API_KEY = os.getenv('SERPAPI_API_KEY')
-if not SERPAPI_API_KEY:
-    raise ValueError("SERPAPI_API_KEY environment variable is not set")
+# NOTE: do NOT raise at import time. The server must be able to boot in the
+# cloud even before secrets are configured; we resolve the key lazily so a
+# missing key only fails the specific tool call, not the whole process.
 
 async def fetch_web_data(query: str, tickers: List[str] = [], max_results: int = 5) -> List[Dict[str, Any]]:
     """
@@ -28,6 +27,10 @@ async def fetch_web_data(query: str, tickers: List[str] = [], max_results: int =
         List[Dict[str, Any]]: List of article data
     """
     logger.debug(f"Fetching web data for query: {query} with tickers: {tickers}")
+
+    SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
+    if not SERPAPI_API_KEY:
+        raise ValueError("SERPAPI_API_KEY environment variable is not set")
     
     # Enhance query with tickers if provided
     if tickers:

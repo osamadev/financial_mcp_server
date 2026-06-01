@@ -7,8 +7,9 @@ from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
-OLLAMA_HOST = "http://localhost:11434"
-MODEL = "mistral"
+# Configurable so the summarizer can point at a reachable LLM in the cloud
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+MODEL = os.getenv("OLLAMA_MODEL", "mistral")
 # Increased timeout for longer articles
 TIMEOUT_SECONDS = 60
 

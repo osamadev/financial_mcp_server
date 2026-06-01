@@ -1,0 +1,15 @@
+.git
+.gitignore
+.venv
+venv
+env
+__pycache__
+*.pyc
+*.log
+financial_mcp.log
+server_output.log
+.env
+.env.*
+screenshot_claude_tools.png
+README.md
+services/user_portfolio.json

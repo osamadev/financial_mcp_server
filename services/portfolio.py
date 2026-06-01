@@ -3,7 +3,10 @@ import os
 import logging
 
 logger = logging.getLogger(__name__)
-PORTFOLIO_FILE = os.path.join(os.path.dirname(__file__), "user_portfolio.json")
+# Override with a path on a mounted volume to persist across redeploys
+PORTFOLIO_FILE = os.getenv(
+    "PORTFOLIO_FILE", os.path.join(os.path.dirname(__file__), "user_portfolio.json")
+)
 
 def load_portfolio():
     try:
