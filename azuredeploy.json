@@ -49,6 +49,27 @@
       "type": "string",
       "defaultValue": "",
       "metadata": { "description": "Optional. Reachable Ollama URL for the news summarizer (e.g. https://my-ollama:11434)." }
+    },
+    "summarizerProvider": {
+      "type": "string",
+      "defaultValue": "ollama",
+      "allowedValues": ["ollama", "openai", "auto"],
+      "metadata": { "description": "Summarizer provider backend." }
+    },
+    "openAiApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. OpenAI API key for summarizer when using openai or auto mode." }
+    },
+    "openAiModel": {
+      "type": "string",
+      "defaultValue": "gpt-4o-mini",
+      "metadata": { "description": "Optional. OpenAI model name for summarizer." }
+    },
+    "openAiBaseUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional. OpenAI-compatible base URL override." }
     }
   },
   "variables": {
@@ -104,7 +125,7 @@
             "stickySessions": { "affinity": "sticky" },
             "traffic": [ { "latestRevision": true, "weight": 100 } ]
           },
-          "secrets": "[concat(if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'mcp-access-token', 'value', parameters('mcpAccessToken')))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'serpapi-key', 'value', parameters('serpApiKey')))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'telegram-bot-token', 'value', parameters('telegramBotToken')))))]"
+          "secrets": "[concat(if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'mcp-access-token', 'value', parameters('mcpAccessToken')))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'serpapi-key', 'value', parameters('serpApiKey')))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'telegram-bot-token', 'value', parameters('telegramBotToken')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'openai-api-key', 'value', parameters('openAiApiKey')))))]"
         },
         "template": {
           "containers": [
@@ -112,7 +133,7 @@
               "name": "financial-mcp-server",
               "image": "[parameters('image')]",
               "resources": { "cpu": "[json('0.5')]", "memory": "1.0Gi" },
-              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))))]"
+              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel')), createObject('name', 'SUMMARIZER_PROVIDER', 'value', parameters('summarizerProvider')), createObject('name', 'OPENAI_MODEL', 'value', parameters('openAiModel'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'OPENAI_API_KEY', 'secretRef', 'openai-api-key'))), if(empty(parameters('openAiBaseUrl')), createArray(), createArray(createObject('name', 'OPENAI_BASE_URL', 'value', parameters('openAiBaseUrl')))))]"
             }
           ],
           "scale": { "minReplicas": 1, "maxReplicas": 1 }

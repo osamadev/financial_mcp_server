@@ -61,7 +61,7 @@ Azure, Render, or Cloudflare Worker proxy.
 - **Trading Opportunities**: Detects and notifies about actionable trading signals.
 
 ### Contextual Summarization
-- **News Summarizer**: Uses a local LLM (Ollama/Mistral) to generate detailed, sentiment-tagged summaries of financial news articles.
+- **News Summarizer**: Uses configurable LLM backends (`ollama`, `openai`, or `auto`) to generate detailed, sentiment-tagged summaries.
 - **Prompt Builder**: Constructs a market-aware prompt for use in downstream LLMs or assistants.
 
 ---
@@ -119,8 +119,13 @@ MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
+SUMMARIZER_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=mistral
+OPENAI_API_KEY=
+OPENAI_MODEL=gpt-4o-mini
+# Optional custom OpenAI-compatible base URL
+# OPENAI_BASE_URL=
 # Optional: set true only for local streamable-http tests
 # ALLOW_UNAUTHENTICATED_HTTP=false
 # Optional: send Telegram notifications when alerts trigger
@@ -165,6 +170,11 @@ OLLAMA_MODEL=mistral
      TELEGRAM_USER_ID=your_chat_id
      SERPAPI_API_KEY=your_serpapi_key
      MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
+     SUMMARIZER_PROVIDER=ollama
+     OLLAMA_HOST=http://localhost:11434
+     OLLAMA_MODEL=mistral
+     OPENAI_API_KEY=
+     OPENAI_MODEL=gpt-4o-mini
      ```
 
 5. **Edit Alert Configurations**

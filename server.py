@@ -211,7 +211,7 @@ async def financial_context(query: str) -> Dict[str, Any]:
         "final_prompt": final_prompt,
         "notes": [
             "financial_context depends on SERPAPI_API_KEY.",
-            "Summarization depends on OLLAMA_HOST/OLLAMA_MODEL unless disabled externally.",
+            "Summarization backend is controlled by SUMMARIZER_PROVIDER (ollama|openai|auto).",
         ],
     }
 

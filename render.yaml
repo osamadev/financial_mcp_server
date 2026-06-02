@@ -26,3 +26,11 @@ services:
         sync: false
       - key: OLLAMA_MODEL
         sync: false
+      - key: SUMMARIZER_PROVIDER
+        value: ollama
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        sync: false
+      - key: OPENAI_BASE_URL
+        sync: false
