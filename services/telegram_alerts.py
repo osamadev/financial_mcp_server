@@ -5,6 +5,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_USER_ID = os.getenv("TELEGRAM_USER_ID")
 
 async def send_telegram_alert(message: str):
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_USER_ID:
+        raise ValueError("TELEGRAM_BOT_TOKEN and TELEGRAM_USER_ID are required.")
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
         "chat_id": TELEGRAM_USER_ID,

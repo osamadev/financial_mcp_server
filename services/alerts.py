@@ -1,195 +1,118 @@
-import yfinance as yf
-from services.telegram_alerts import send_telegram_alert
 import logging
-import json
 import os
-from pathlib import Path
+from typing import Any, Dict, Iterable, List
+
+from services.market_data import get_stock_quote, normalize_ticker
+from services.portfolio import get_price_alerts, load_portfolio
+from services.telegram_alerts import send_telegram_alert
 
 logger = logging.getLogger(__name__)
 
-def load_alerts_config():
-    """Load alerts configuration from JSON file."""
-    try:
-        config_path = Path(__file__).parent.parent / 'config' / 'alerts_config.json'
-        with open(config_path, 'r') as f:
-            config = json.load(f)
-        
-        # Flatten the sector-based structure into a simple ticker-rules dictionary
-        alerts = {}
-        for sector in config.values():
-            for ticker, details in sector.items():
-                # Copy all alert parameters
-                alerts[ticker] = details.copy()
-        return alerts
-    except Exception as e:
-        logger.error(f"Error loading alerts configuration: {str(e)}")
-        return {}
 
-async def check_alerts(tickers=None):
-    """
-    Check alerts for stocks with focus on trading signals.
-    Args:
-        tickers (list): Optional list of ticker symbols to check. If None, checks all stocks.
-    """
-    triggered = []
-    try:
-        alerts_config = load_alerts_config()
-        if not alerts_config:
-            logger.error("No alerts configuration loaded")
-            return ["⚠️ Error: Could not load alerts configuration"]
+def _is_telegram_enabled() -> bool:
+    enabled = os.getenv("ENABLE_TELEGRAM_ALERTS", "false").lower()
+    return enabled in ("1", "true", "yes")
 
-        # Filter tickers if specific ones are requested
-        check_tickers = tickers if tickers else alerts_config.keys()
-        
-        for ticker in check_tickers:
-            try:
-                if ticker not in alerts_config:
-                    if tickers:  # Only show error if specifically requested
-                        triggered.append(f"⚠️ No configuration found for {ticker}")
-                    continue
 
-                rules = alerts_config[ticker]
-                data = yf.Ticker(ticker)
-                price = data.info.get("regularMarketPrice")
-                description = rules.get("description", "")
+def _portfolio_tickers() -> List[str]:
+    portfolio = load_portfolio()
+    positions = portfolio.get("positions", [])
+    return [item["ticker"] for item in positions if item.get("ticker")]
 
-                if price:
-                    logger.info(f"Current price for {ticker}: ${price}")
-                    
-                    # Strong buy signal
-                    if "strong_buy" in rules and price <= rules["strong_buy"]:
-                        msg = f"🟢 Strong Buy Signal: {ticker} at ${price}\n" \
-                             f"• Price at/below strong buy level ${rules['strong_buy']}"
-                        if description:
-                            msg += f"\nNote: {description}"
-                        triggered.append(msg)
-                    # Regular buy signal
-                    elif "below" in rules and price < rules["below"]:
-                        msg = f"🟢 Buy Signal: {ticker} at ${price}\n" \
-                             f"• Price below buy threshold ${rules['below']}"
-                        if description:
-                            msg += f"\nNote: {description}"
-                        triggered.append(msg)
-                    # Strong sell signal
-                    elif "strong_sell" in rules and price >= rules["strong_sell"]:
-                        msg = f"🔴 Strong Sell Signal: {ticker} at ${price}\n" \
-                             f"• Price at/above strong sell level ${rules['strong_sell']}"
-                        if description:
-                            msg += f"\nNote: {description}"
-                        triggered.append(msg)
-                    # Regular sell signal
-                    elif "above" in rules and price > rules["above"]:
-                        msg = f"🔴 Sell Signal: {ticker} at ${price}\n" \
-                             f"• Price above sell threshold ${rules['above']}"
-                        if description:
-                            msg += f"\nNote: {description}"
-                        triggered.append(msg)
-                    # No signals but ticker was specifically requested
-                    elif tickers:
-                        msg = f"ℹ️ {ticker} at ${price} - No trading signals triggered"
-                        if description:
-                            msg += f"\nNote: {description}"
-                        triggered.append(msg)
 
-            except Exception as e:
-                logger.error(f"Error checking alerts for {ticker}: {str(e)}")
-                if tickers:  # Only show errors for specifically requested tickers
-                    triggered.append(f"⚠️ Error checking {ticker}: {str(e)}")
+def _evaluate_thresholds(
+    ticker: str, quote: Dict[str, Any], rules: Dict[str, Any]
+) -> List[Dict[str, Any]]:
+    events: List[Dict[str, Any]] = []
+    price = quote.get("price")
+    if price is None:
+        return events
 
-        if triggered:
-            header = "💰 Trading Signals Alert"
-            if tickers:
-                header += f" for {', '.join(tickers)}"
-            summary = f"{header}:\n\n" + "\n\n".join(triggered)
-            try:
-                await send_telegram_alert(summary)
-                logger.info("Trading signals sent successfully")
-            except Exception as e:
-                logger.error(f"Error sending alerts: {str(e)}")
+    above = rules.get("above")
+    below = rules.get("below")
+    if above is not None and price >= float(above):
+        events.append(
+            {
+                "ticker": ticker,
+                "price": price,
+                "threshold_type": "above",
+                "threshold_value": float(above),
+                "message": f"{ticker} crossed above {above} (price={price})",
+            }
+        )
+    if below is not None and price <= float(below):
+        events.append(
+            {
+                "ticker": ticker,
+                "price": price,
+                "threshold_type": "below",
+                "threshold_value": float(below),
+                "message": f"{ticker} crossed below {below} (price={price})",
+            }
+        )
+    return events
 
-        return triggered
-    except Exception as e:
-        logger.error(f"Unexpected error in check_alerts: {str(e)}")
-        return [f"⚠️ System error: {str(e)}"]
 
-async def check_trading_opportunities(ticker):
-    """
-    Check for buying and selling opportunities for a specific stock.
-    Args:
-        ticker (str): The stock ticker to check
-    Returns:
-        list: List of trading opportunities
-    """
-    try:
-        alerts_config = load_alerts_config()
-        if not alerts_config or ticker.upper() not in alerts_config:
-            return [f"⚠️ No configuration found for {ticker}"]
+async def get_alerts(ticker: str | None = None) -> Dict[str, Any]:
+    alerts = get_price_alerts(ticker=ticker)
+    if ticker:
+        symbol = normalize_ticker(ticker)
+        return {"alerts": {symbol: alerts.get(symbol)}}
+    return {"alerts": alerts}
 
-        rules = alerts_config[ticker.upper()]
-        data = yf.Ticker(ticker)
-        ticker_info = data.info
-        
-        if not ticker_info:
-            return [f"⚠️ Could not get data for {ticker}"]
 
-        price = ticker_info.get("regularMarketPrice")
-        if not price:
-            return [f"⚠️ Could not get current price for {ticker}"]
+async def check_alerts(
+    tickers: Iterable[str] | None = None, send_notifications: bool = False
+) -> Dict[str, Any]:
+    alerts_map = get_price_alerts()
+    if not alerts_map:
+        return {"events": [], "checked_tickers": [], "reason": "No alert rules configured."}
 
-        opportunities = []
-        description = rules.get("description", "")
+    if tickers:
+        checked_tickers = [normalize_ticker(t) for t in tickers]
+    else:
+        checked_tickers = [t for t in _portfolio_tickers() if t in alerts_map]
+        if not checked_tickers:
+            checked_tickers = list(alerts_map.keys())
 
-        # Check for buying opportunities
-        if price <= rules.get("strong_buy", float('inf')):
-            opportunities.append(f"🟢 Strong Buy Signal for {ticker} at ${price}")
-            opportunities.append(f"• Price at/below strong buy level ${rules['strong_buy']}")
-        elif price <= rules.get("below", float('inf')):
-            opportunities.append(f"🟢 Buy Signal for {ticker} at ${price}")
-            opportunities.append(f"• Price below buy threshold ${rules['below']}")
+    events: List[Dict[str, Any]] = []
+    for symbol in checked_tickers:
+        rules = alerts_map.get(symbol)
+        if not isinstance(rules, dict):
+            continue
+        quote = get_stock_quote(symbol)
+        events.extend(_evaluate_thresholds(symbol, quote, rules))
 
-        # Check for selling opportunities
-        if price >= rules.get("strong_sell", float('-inf')):
-            opportunities.append(f"🔴 Strong Sell Signal for {ticker} at ${price}")
-            opportunities.append(f"• Price at/above strong sell level ${rules['strong_sell']}")
-        elif price >= rules.get("above", float('-inf')):
-            opportunities.append(f"🔴 Sell Signal for {ticker} at ${price}")
-            opportunities.append(f"• Price above sell threshold ${rules['above']}")
+    if send_notifications and events and _is_telegram_enabled():
+        summary_lines = ["Price alerts triggered:"]
+        summary_lines.extend([f"- {event['message']}" for event in events])
+        try:
+            await send_telegram_alert("\n".join(summary_lines))
+        except Exception as exc:
+            logger.error(f"Failed to send Telegram alert: {exc}")
 
-        # Check support/resistance levels
-        if "support_levels" in rules:
-            for level in rules["support_levels"]:
-                if abs(price - level) <= (level * 0.01):  # Within 1% of support
-                    opportunities.append(f"📊 Near support level ${level} (potential buy zone)")
+    return {"events": events, "checked_tickers": checked_tickers}
 
-        if "resistance_levels" in rules:
-            for level in rules["resistance_levels"]:
-                if abs(price - level) <= (level * 0.01):  # Within 1% of resistance
-                    opportunities.append(f"📊 Near resistance level ${level} (potential sell zone)")
 
-        if opportunities:
-            if description:
-                opportunities.append(f"\nNote: {description}")
-        else:
-            opportunities = [f"ℹ️ No immediate trading opportunities for {ticker} at ${price}"]
+async def check_trading_opportunities(ticker: str) -> Dict[str, Any]:
+    symbol = normalize_ticker(ticker)
+    quote = get_stock_quote(symbol)
+    rules = get_price_alerts(symbol).get(symbol) or {}
+    events = _evaluate_thresholds(symbol, quote, rules)
+    if not events:
+        return {
+            "ticker": symbol,
+            "opportunities": [],
+            "message": "No threshold opportunities currently triggered.",
+        }
+    return {"ticker": symbol, "opportunities": events}
 
-        return opportunities
 
-    except Exception as e:
-        logger.error(f"Error checking trading opportunities for {ticker}: {str(e)}")
-        return [f"⚠️ Error checking {ticker}: {str(e)}"]
-
-async def send_trading_alert(ticker):
-    """
-    Send trading opportunities alert for a specific stock.
-    Args:
-        ticker (str): The stock ticker to check
-    """
-    try:
-        opportunities = await check_trading_opportunities(ticker)
-        if opportunities:
-            summary = f"💰 Trading Opportunities for {ticker}:\n\n" + "\n".join(opportunities)
-            await send_telegram_alert(summary)
-            return opportunities
-    except Exception as e:
-        logger.error(f"Error sending trading alert for {ticker}: {str(e)}")
-        return [f"⚠️ Error: {str(e)}"]
+async def send_trading_alert(ticker: str) -> Dict[str, Any]:
+    result = await check_trading_opportunities(ticker)
+    opportunities = result.get("opportunities", [])
+    if opportunities and _is_telegram_enabled():
+        await send_telegram_alert(
+            "\n".join(["Trading opportunities:"] + [f"- {x['message']}" for x in opportunities])
+        )
+    return result

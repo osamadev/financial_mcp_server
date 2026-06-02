@@ -27,12 +27,16 @@ jobs:
 
       - name: Boot server and verify MCP initialize handshake
         run: |
-          docker run -d --name fin -p 8000:8000 -e MCP_TRANSPORT=streamable-http fin-mcp:ci
+          docker run -d --name fin -p 8000:8000 \
+            -e MCP_TRANSPORT=streamable-http \
+            -e MCP_ACCESS_TOKEN=ci-test-token \
+            fin-mcp:ci
           ok=""
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://127.0.0.1:8000/mcp \
               -H "Content-Type: application/json" \
               -H "Accept: application/json, text/event-stream" \
+              -H "Authorization: Bearer ci-test-token" \
               -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"ci","version":"1"}}}' || true)
             if [ "$code" = "200" ]; then ok=1; echo "MCP initialize -> HTTP 200"; break; fi
             sleep 2

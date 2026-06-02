@@ -14,22 +14,26 @@ A custom Model Context Protocol (MCP) server for advanced financial analysis, st
 
 Use the deployment buttons and platform manifests in [`DEPLOY.md`](DEPLOY.md)
 to launch a remotely hosted MCP endpoint over HTTPS (`https://.../mcp`) on
-Azure, Render, or Heroku.
+Azure, Render, or Cloudflare Worker proxy.
+
+[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker)
 
 - Local default: `MCP_TRANSPORT=stdio` (Claude Desktop / local MCP clients)
 - Cloud default in container manifests: `MCP_TRANSPORT=streamable-http`
+- Secure HTTP default: set `MCP_ACCESS_TOKEN` and send `Authorization: Bearer <token>`
 
 ---
 
 ## Key Features
 
-- **Real-time Stock Price Monitoring**: Track and alert on price movements for user-defined stocks and thresholds.
-- **Portfolio Management**: Add, remove, and view tracked stocks in a persistent portfolio.
-- **Market Summaries**: Retrieve live global market data, including indices, top gainers/losers, and news headlines.
-- **Contextual Financial Insights**: Analyze user queries, extract financial entities, fetch and summarize relevant news, and generate actionable prompts.
-- **Automated Alerts**: Receive Telegram notifications for price thresholds, trading opportunities, and system errors.
-- **Customizable Configuration**: JSON-based sector and stock configuration for flexible alerting.
-- **Robust Logging & Error Handling**: Detailed logs and error messages for transparency and troubleshooting.
+- **Core Stock Toolkit**: Quotes, company overview, and price history tools for practical analysis workflows.
+- **Portfolio With Live Values**: Maintain a watchlist/positions store and return portfolio-level valuation context.
+- **Configurable Price Alerts**: Set per-ticker `above` / `below` thresholds and evaluate triggered alert events.
+- **News + Context Layer**: Retrieve market news and optional sentiment-rich context summaries for research workflows.
+- **Secure Streamable HTTP**: Bearer-token authentication support for public deployments using `MCP_ACCESS_TOKEN`.
+- **Cloud-Ready Deployment**: Docker + one-click manifests for Azure Container Apps, Render, and Cloudflare Worker proxy.
 
 ---
 
@@ -37,18 +41,20 @@ Azure, Render, or Heroku.
 
 ### Core Endpoints & Tools
 
-- **financial_context(query: str)**
-  - Extracts tickers and keywords from a user query, fetches and summarizes relevant news, and returns a structured context and prompt for downstream analysis.
-- **market_summary()**
-  - Returns a live summary of global markets, including indices, top movers, and news headlines.
+- **get_stock_quote(ticker: str)**
+  - Returns normalized live quote data (price, change, market cap, volume, exchange, timestamp).
+- **get_price_history(ticker: str, period: str, interval: str)**
+  - Returns chart-ready OHLCV history points for backtesting and trend analysis.
+- **get_company_overview(ticker: str)**
+  - Returns company profile metadata and key valuation fields when available.
 - **get_portfolio()**
-  - Retrieves the current list of tracked stocks in the user's portfolio.
-- **add_stock(ticker: str)** / **remove_stock(ticker: str)**
-  - Add or remove a stock from the portfolio, with cache invalidation and verification.
-- **portfolio_alerts(random_string: str)**
-  - Returns all triggered alerts for the portfolio, or for a specific ticker if provided.
-- **check_stock_alerts(ticker: str)** / **single_stock_alert(ticker: str)**
-  - Returns alerts for a specific stock, with detailed error handling.
+  - Returns positions/watchlist plus live quote enrichment and portfolio market value summary.
+- **add_stock(...)** / **remove_stock(...)**
+  - Add or remove symbols in the persistent portfolio store.
+- **set_stock_alert(ticker, above=None, below=None)** / **get_portfolio_alerts(ticker=None)**
+  - Configure and evaluate price-threshold alerts from portfolio-backed rules.
+- **get_stock_news(ticker_or_query, max_results=5)** and **financial_context(query)**
+  - Provide raw financial headlines and optional LLM-ready context summaries.
 
 ### Automated Alerting
 - **Telegram Integration**: Sends formatted alerts and summaries to a configured Telegram chat.
@@ -108,11 +114,17 @@ Set these in a `.env` file or your system environment:
 MCP_TRANSPORT=stdio
 HOST=0.0.0.0
 PORT=8000
+LOG_LEVEL=INFO
+MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
 TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
+TELEGRAM_USER_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=mistral
+# Optional: set true only for local streamable-http tests
+# ALLOW_UNAUTHENTICATED_HTTP=false
+# Optional: send Telegram notifications when alerts trigger
+# ENABLE_TELEGRAM_ALERTS=false
 # Optional persistent path for portfolio file in cloud
 # PORTFOLIO_FILE=/data/user_portfolio.json
 ```
@@ -150,8 +162,9 @@ OLLAMA_MODEL=mistral
    - Create a `.env` file in the project root with your API keys and tokens:
      ```
      TELEGRAM_BOT_TOKEN=your_bot_token
-     TELEGRAM_CHAT_ID=your_chat_id
+     TELEGRAM_USER_ID=your_chat_id
      SERPAPI_API_KEY=your_serpapi_key
+     MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
      ```
 
 5. **Edit Alert Configurations**
@@ -227,10 +240,10 @@ Below is a screenshot showing how the tools from your MCP server will be listed 
 
 ## Usage Examples
 
-- **Get Market Summary**: Use the `market_summary` tool to fetch live indices, movers, and news.
-- **Manage Portfolio**: Use `add_stock`, `remove_stock`, and `get_portfolio` to update and view your tracked stocks.
-- **Receive Alerts**: Configure thresholds and receive Telegram notifications for price movements and trading opportunities.
-- **Contextual Analysis**: Use `financial_context` to analyze a query, extract tickers, and get summarized news and a market-aware prompt.
+- **Get Live Quotes**: Use `get_stock_quote` and `get_company_overview` for practical stock checks.
+- **Track Portfolio**: Use `add_stock`, `remove_stock`, and `get_portfolio` to maintain and value your watchlist.
+- **Evaluate Alerts**: Use `set_stock_alert` and `get_portfolio_alerts` for threshold-based signals.
+- **Contextual Analysis**: Use `financial_context` to fetch and summarize market context for a query.
 
 ---
 
