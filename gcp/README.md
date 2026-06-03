@@ -8,6 +8,7 @@ Use the **Run on Google Cloud** button in the root [`README.md`](../README.md) o
 
 - `MCP_ACCESS_TOKEN` (static mode)
 - `SERPAPI_API_KEY` (optional)
+- `ALPHA_VANTAGE_API_KEY` (optional; reserved — quotes currently use yfinance)
 - For OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, `MCP_RESOURCE_SERVER_URL=https://<service-url>/mcp`
 
 Cloud Run injects `PORT`; the server reads it automatically.

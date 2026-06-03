@@ -143,6 +143,8 @@ MCP_RESOURCE_SERVER_URL=
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
+# Optional (deploy templates support it; quotes currently use yfinance)
+# ALPHA_VANTAGE_API_KEY=
 SUMMARIZER_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_MODEL=mistral
@@ -264,8 +266,7 @@ After installing and registering the Financial MCP Server, you can add it to you
         "SERPAPI_API_KEY": "",
         "TELEGRAM_BOT_TOKEN": "",
         "TELEGRAM_USER_ID": "",
-        "OPENAI_API_KEY": "",
-        "ALPHA_VANTAGE_API_KEY": ""
+        "OPENAI_API_KEY": ""
       }
     }
   }
