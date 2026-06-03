@@ -2,9 +2,18 @@
 
 <p align="center">
   <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json">
-    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure Container Apps" width="280" />
+    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" />
+  </a>
+  &nbsp;
+  <a href="https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server">
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" />
+  </a>
+  &nbsp;
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" />
   </a>
 </p>
+<p align="center"><sub>Azure / Render host the MCP backend · Cloudflare deploys the optional HTTPS proxy only</sub></p>
 
 A custom Model Context Protocol (MCP) server for advanced financial analysis, stock monitoring, and real-time market intelligence. This server provides a suite of tools and API endpoints for portfolio management, market summaries, stock alerts, and contextual financial insights, designed for seamless integration with Claude Desktop and other MCP-compatible clients.
 
@@ -12,17 +21,18 @@ A custom Model Context Protocol (MCP) server for advanced financial analysis, st
 
 ## One-Click Cloud Deploy
 
-Use the deployment buttons and platform manifests in [`DEPLOY.md`](DEPLOY.md)
-to launch a remotely hosted MCP endpoint over HTTPS (`https://.../mcp`) on
-Azure, Render, or Cloudflare Worker proxy.
+Use the buttons at the top of this page or the full guide in [`DEPLOY.md`](DEPLOY.md)
+to launch a remote MCP endpoint at `https://<host>/mcp`.
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server)
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker)
+| Platform | Deploys | Default auth | OAuth setup |
+|----------|---------|--------------|-------------|
+| [Azure Container Apps](https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json) | Python MCP backend (`azuredeploy.json`) | `mcpAuthMode=static` | Set `mcpAuthMode=oauth` + Entra settings in the portal — see [OAuth (Entra ID)](DEPLOY.md#oauth-entra-id) |
+| [Render](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`render.yaml`) | `MCP_AUTH_MODE=static` | Add OAuth env vars in the Render dashboard after deploy |
+| [Cloudflare Worker](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker) | HTTPS proxy only (`cloudflare-worker/`) | `WORKER_AUTH_MODE=static` | Use `WORKER_AUTH_MODE=passthrough` when the backend uses OAuth JWTs |
 
 - Local default: `MCP_TRANSPORT=stdio` (Claude Desktop / local MCP clients)
-- Cloud default in container manifests: `MCP_TRANSPORT=streamable-http`
-- Authentication mode is configurable with `MCP_AUTH_MODE=static|oauth|none`
+- Cloud default: `MCP_TRANSPORT=streamable-http`
+- Auth modes: `MCP_AUTH_MODE=static|oauth|none` — OAuth client ID/secret go in **Claude**, not on the server
 
 ---
 
@@ -32,7 +42,7 @@ Azure, Render, or Cloudflare Worker proxy.
 - **Portfolio With Live Values**: Maintain a watchlist/positions store and return portfolio-level valuation context.
 - **Configurable Price Alerts**: Set per-ticker `above` / `below` thresholds and evaluate triggered alert events.
 - **News + Context Layer**: Retrieve market news and optional sentiment-rich context summaries for research workflows.
-- **Secure Streamable HTTP**: Bearer-token authentication support for public deployments using `MCP_ACCESS_TOKEN`.
+- **Secure Streamable HTTP**: Static bearer (`MCP_ACCESS_TOKEN`) or OAuth JWT validation (`MCP_AUTH_MODE=oauth`) for public deployments.
 - **Cloud-Ready Deployment**: Docker + one-click manifests for Azure Container Apps, Render, and Cloudflare Worker proxy.
 
 ---
@@ -153,24 +163,12 @@ OPENAI_MODEL=gpt-4o-mini
   Client ID and client secret belong in the **connector / IdP app**, not on this server.
 - `none`: only for local tests with `ALLOW_UNAUTHENTICATED_HTTP=true`.
 
-#### Microsoft Entra ID (Azure AD) example (`MCP_AUTH_MODE=oauth`)
+#### Microsoft Entra ID (Azure AD)
 
-1. Register an API app and a separate client app (or use one app with exposed scope).
-2. Set the API **Application ID URI** or app ID as audience (comma-separate if you need both).
-3. Configure the MCP container:
+For Claude OAuth connectors, register an Entra **API app** and a separate **client app**, deploy the
+backend with `MCP_AUTH_MODE=oauth`, then configure Claude with the client app credentials.
 
-```env
-MCP_AUTH_MODE=oauth
-MCP_TRANSPORT=streamable-http
-OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
-OAUTH_AUDIENCE=api://<api-app-client-id>,<api-app-client-id>
-OAUTH_REQUIRED_SCOPES=mcp:tools
-MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
-```
-
-4. In Claude: **Add custom connector** → OAuth → enter your Entra app **Client ID** and
-   **Client secret**, redirect URIs from Claude’s docs, and scopes matching `OAUTH_REQUIRED_SCOPES`.
-5. If using the Cloudflare proxy: `WORKER_AUTH_MODE=passthrough` so the user JWT reaches the backend.
+Step-by-step Entra and Claude setup: **[`DEPLOY.md` — OAuth (Entra ID)](DEPLOY.md#oauth-entra-id)**.
 
 ---
 

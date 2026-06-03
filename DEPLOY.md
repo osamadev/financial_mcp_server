@@ -1,90 +1,195 @@
 ## Deploy
 
-### Option A — One-click (host your own copy)
+### One-click buttons
 
-[![Deploy to Azure](https://aka.ms/deploytoazurebutton)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server)
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker)
+Host your own copy from this repository (fork first if you need a custom `azuredeploy.json` / `render.yaml`).
 
-- **Azure Container Apps** uses `azuredeploy.json` (ARM). The button opens the
-  Azure Portal pre-filled; pick a resource group, optionally paste your
-  auth/environment values (`mcpAuthMode`, `mcpAccessToken` for static mode, or OAuth settings for oauth mode) plus optional `serpApiKey`/Telegram keys, and deploy. It
-  provisions a Container Apps environment + Log Analytics and pulls the public
-  GHCR image. The MCP endpoint is the app's HTTPS FQDN + `/mcp` (shown as the
-  `mcpEndpoint` output). Runs 1 always-on replica with sticky sessions (so MCP
-  session state stays on one instance) — that means a small steady cost, not
-  scale-to-zero.
-- **Render** reads `render.yaml` (Docker runtime). Click the button, add your
-  `SERPAPI_API_KEY` (and Telegram vars) when prompted, deploy. Your endpoint is
-  `https://<app>.onrender.com/mcp`.
-- **Cloudflare Worker proxy** deploys only the proxy app in `cloudflare-worker/`.
-  It does not host the Python MCP backend itself.
+<p align="center">
+  <a href="https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json">
+    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" />
+  </a>
+  &nbsp;
+  <a href="https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server">
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" />
+  </a>
+  &nbsp;
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" />
+  </a>
+</p>
 
-### Cloudflare proxy flow (two steps)
+| Button | What it deploys | Endpoint | Auth defaults |
+|--------|-----------------|----------|---------------|
+| **Azure** | Container Apps + Log Analytics via `azuredeploy.json` | `mcpEndpoint` output → `https://<fqdn>/mcp` | `mcpAuthMode=static`; set `mcpAccessToken` in the portal |
+| **Render** | Docker web service via `render.yaml` | `https://<app>.onrender.com/mcp` | `MCP_AUTH_MODE=static`; set `MCP_ACCESS_TOKEN` when prompted |
+| **Cloudflare** | Worker proxy in `cloudflare-worker/` only | `https://<worker>.workers.dev/mcp` | Not the Python backend — configure `MCP_BACKEND_URL` after backend deploy |
 
-1. Deploy the Python MCP backend to **Azure** or **Render**.
-2. Deploy the Cloudflare Worker proxy, then set:
-   - `MCP_BACKEND_URL=https://<your-azure-or-render-host>/mcp`
-   - `WORKER_AUTH_MODE=static` and `MCP_ACCESS_TOKEN=<same-token-as-backend>` for static mode, OR
-   - `WORKER_AUTH_MODE=passthrough` for OAuth mode so client JWT is forwarded to backend.
+> **Free tiers** sleep after ~15 min idle; the first MCP call after idle may take 30–60s.
+> Use a paid plan or a keep-alive ping for production connectors.
 
-The Worker validates the caller's bearer token and forwards MCP traffic to the
-backend with the same token.
+---
 
-> Free tiers on these platforms sleep after ~15 min idle, so the first MCP call
-> after a pause may take 30-60s (the connector can time out on a cold start).
-> Use a paid instance or a keep-alive ping for always-on use.
+### Option A — Platform notes
+
+#### Azure Container Apps
+
+1. Click **Deploy to Azure** (or use the [portal link](https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)).
+2. Pick a resource group and region.
+3. **Static auth (simplest):** leave `mcpAuthMode` as `static`, set `mcpAccessToken`.
+4. **OAuth auth:** set `mcpAuthMode` to `oauth`, leave `mcpAccessToken` empty, fill `oauthIssuerUrl`, `oauthAudience`, `oauthRequiredScopes`, and `mcpResourceServerUrl` (use `https://<fqdn>/mcp` after first deploy, or your known hostname).
+5. Optional: `serpApiKey`, Telegram vars, summarizer settings.
+6. Deploy; copy the **`mcpEndpoint`** output for Claude.
+
+Runs one always-on replica with sticky sessions (small steady cost, not scale-to-zero).
+
+#### Render
+
+1. Click **Deploy to Render**.
+2. Connect the repo; Render applies `render.yaml` (Docker, `streamable-http`).
+3. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY` / Telegram vars.
+4. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
+
+#### Cloudflare Worker (proxy)
+
+1. Deploy the **Python backend** on Azure or Render first.
+2. Click **Deploy to Cloudflare** (or `npm run deploy` in `cloudflare-worker/`).
+3. Set Worker secrets/vars:
+   - `MCP_BACKEND_URL` = `https://<backend-host>/mcp`
+   - **Static:** `WORKER_AUTH_MODE=static`, `MCP_ACCESS_TOKEN` = same as backend `MCP_ACCESS_TOKEN`
+   - **OAuth:** `WORKER_AUTH_MODE=passthrough` (forwards the caller’s Entra JWT to the backend)
+
+See [`cloudflare-worker/README.md`](cloudflare-worker/README.md).
+
+---
 
 ### Option B — Run the prebuilt image anywhere
 
-Every push to `main` publishes a multi-arch image to GHCR via GitHub Actions, so
-it runs on any provider that accepts a public image:
+Every push to `main` publishes a multi-arch image to GHCR:
 
 ```bash
 docker run -p 8000:8000 \
   -e MCP_TRANSPORT=streamable-http \
+  -e MCP_AUTH_MODE=static \
   -e MCP_ACCESS_TOKEN=replace_with_strong_token \
   -e SERPAPI_API_KEY=your_key \
   ghcr.io/osamadev/financial_mcp_server:latest
 # MCP endpoint -> http://localhost:8000/mcp
 ```
 
-- **Any VPS / Docker host, Fly.io, Azure Container Apps, AWS ECS/Fargate, Koyeb**
-  can pull `ghcr.io/...` directly (`fly launch --image ghcr.io/osamadev/financial_mcp_server:latest`).
-- **Google Cloud Run / AWS App Runner** prefer their own registry — mirror the
-  image into Artifact Registry / ECR first, then deploy it.
+- **VPS / Fly.io / Container Apps / ECS** can pull `ghcr.io/osamadev/financial_mcp_server:latest`.
+- **Cloud Run / App Runner** — mirror the image to your registry first.
 
-To make the GHCR package public: GitHub repo -> Packages -> the image ->
-Package settings -> Change visibility -> Public. No registry secrets are needed;
-the workflow authenticates with the built-in `GITHUB_TOKEN`.
+Make the GHCR package public: GitHub repo → **Packages** → image → **Package settings** → **Change visibility** → Public.
 
-### Connect from Claude
+---
 
-Once it is live over HTTPS: Claude -> **Customize -> Connectors -> + -> Add
-custom connector**, paste:
-- backend direct URL: `https://.../mcp`, or
-- Cloudflare proxy URL: `https://<worker-subdomain>.workers.dev/mcp`
+## OAuth (Entra ID)
 
-The server must be reachable
-on the public internet (Claude connects from Anthropic's cloud, not your machine).
+Use this when Claude’s custom connector should use **OAuth** (client ID + client secret in Claude), not a static `MCP_ACCESS_TOKEN` on the connector.
 
-For OAuth mode in Claude connector:
-- Set connector auth to your OIDC provider.
-- Provide OAuth Client ID and Client Secret in connector settings.
-- Ensure provider app allows the callback/redirect URIs required by Claude.
-- Request audience/scope matching backend settings (`OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES`).
+The MCP server **only validates JWTs**. It does **not** store an OAuth client secret.
 
-When HTTP security is enabled (recommended), choose one auth mode:
-- **Static mode** (`MCP_AUTH_MODE=static`):
-  - Send `Authorization: Bearer <MCP_ACCESS_TOKEN>`.
-  - Rotate `MCP_ACCESS_TOKEN` whenever sharing or revoking access.
-- **OAuth mode** (`MCP_AUTH_MODE=oauth`):
-  - Configure `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, optional `OAUTH_JWKS_URL`,
-    required scopes, and `MCP_RESOURCE_SERVER_URL`.
-  - Client obtains JWT from your OIDC provider (using client ID/client secret
-    in connector/app settings) and sends it as bearer token.
+### Overview
 
-Quick verification after deploy:
+| App registration | Purpose | Credentials live in |
+|------------------|---------|---------------------|
+| **API app** (`financial-mcp-api`) | Defines scopes & audience (`aud` in token) | Azure portal only |
+| **Client app** (`financial-mcp-claude-client`) | Claude sign-in, redirect URIs, client secret | **Claude connector** (+ Entra portal) |
+| **MCP backend** | Validates `iss`, `aud`, `scp`/`scope` | Container env / Azure ARM parameters |
+
+### 1. Register the API app (resource server)
+
+1. [Microsoft Entra admin center](https://entra.microsoft.com) → **Applications** → **App registrations** → **New registration**.
+2. Name: e.g. `financial-mcp-api`. Note **Application (client) ID** and **Directory (tenant) ID**.
+3. **Expose an API**:
+   - Set **Application ID URI** (e.g. `api://financial-mcp` or default `api://<api-client-id>`).
+   - **Add a scope**: name `mcp:tools` (or match `OAUTH_REQUIRED_SCOPES` on the server).
+   - Note the full scope clients request, e.g. `api://financial-mcp/mcp:tools`.
+
+### 2. Register the OAuth client app (for Claude)
+
+1. **New registration** → e.g. `financial-mcp-claude-client`.
+2. **Authentication** → **Add platform** → **Web** (or per [Claude custom connector](https://support.anthropic.com/) docs).
+3. Add **Redirect URIs** exactly as Claude documents for custom MCP connectors (wrong URI → sign-in failure).
+4. **Certificates & secrets** → **New client secret** → copy value once (used in Claude only).
+5. **API permissions** → **Add permission** → **My APIs** → `financial-mcp-api` → delegated `mcp:tools` (or your scope) → **Grant admin consent** if required.
+
+**Do not** put the client secret in Azure Container Apps, Render, or Docker env vars.
+
+### 3. Deploy backend with OAuth env {#backend-env-oauth}
+
+After the backend is reachable at a public HTTPS URL:
+
+```env
+MCP_TRANSPORT=streamable-http
+MCP_AUTH_MODE=oauth
+OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+OAUTH_AUDIENCE=api://<api-app-client-id>,<api-app-client-id>
+OAUTH_REQUIRED_SCOPES=mcp:tools
+MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
+```
+
+| Variable | Azure ARM parameter | Notes |
+|----------|---------------------|--------|
+| `MCP_AUTH_MODE` | `mcpAuthMode` | `oauth` |
+| `OAUTH_ISSUER_URL` | `oauthIssuerUrl` | Tenant v2.0 issuer |
+| `OAUTH_AUDIENCE` | `oauthAudience` | Match token `aud` (URI and/or API app GUID, comma-separated) |
+| `OAUTH_REQUIRED_SCOPES` | `oauthRequiredScopes` | Must appear in JWT `scp` or `scope` — decode a test token at [jwt.ms](https://jwt.ms) and align |
+| `MCP_RESOURCE_SERVER_URL` | `mcpResourceServerUrl` | Public URL ending in `/mcp` |
+| `MCP_ACCESS_TOKEN` | `mcpAccessToken` | Leave **empty** in OAuth mode |
+
+If Entra puts `api://financial-mcp/mcp:tools` in `scp`, set `OAUTH_REQUIRED_SCOPES` to that full string (not only `mcp:tools`).
+
+### 4. Configure Claude custom connector
+
+1. **Customize** → **Connectors** → **Add custom connector**.
+2. **URL:** `https://<backend-fqdn>/mcp` or Cloudflare `https://<worker>.workers.dev/mcp`.
+3. **Authentication:** OAuth (not static bearer).
+4. **Client ID / Client secret:** from the **client app** (step 2), not the API app.
+5. **Scopes:** match Entra and `OAUTH_REQUIRED_SCOPES`.
+6. Complete sign-in; Claude sends the Entra access token as `Authorization: Bearer <jwt>`.
+
+### 5. Verify
+
+```bash
+curl -X POST "https://<your-host>/mcp" \
+  -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Authorization: Bearer <entra-access-token>" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+```
+
+Expect **HTTP 200** with a valid token; **401** if issuer, audience, or scopes do not match server config.
+
+### Troubleshooting
+
+| Symptom | Check |
+|---------|--------|
+| Claude “Couldn't register with sign-in service” | Backend `MCP_AUTH_MODE=oauth`, real `OAUTH_ISSUER_URL`, client app redirect URIs |
+| 401 after login | Token `aud` vs `OAUTH_AUDIENCE`; `scp` vs `OAUTH_REQUIRED_SCOPES` |
+| Works on Azure URL but not via Worker | `WORKER_AUTH_MODE=passthrough` and backend `MCP_AUTH_MODE=oauth` |
+| Want simple shared secret instead | `MCP_AUTH_MODE=static`, omit `MCP_RESOURCE_SERVER_URL`, bearer token in Claude |
+
+---
+
+## Connect from Claude
+
+Once live over HTTPS: **Customize → Connectors → Add custom connector** → paste:
+
+- Backend: `https://<azure-or-render-host>/mcp`
+- Or Cloudflare proxy: `https://<worker>.workers.dev/mcp`
+
+Claude connects from Anthropic’s cloud; the host must be on the public internet.
+
+### Auth mode summary
+
+| Mode | Server env | Claude connector |
+|------|------------|------------------|
+| **Static** | `MCP_AUTH_MODE=static`, `MCP_ACCESS_TOKEN` | Bearer / static token (same secret) |
+| **OAuth** | `MCP_AUTH_MODE=oauth`, Entra vars above | OAuth + client app ID/secret |
+| **None** | `ALLOW_UNAUTHENTICATED_HTTP=true` | Dev only — not for production |
+
+Static verification:
 
 ```bash
 curl -X POST "https://<your-host>/mcp" \
@@ -93,19 +198,3 @@ curl -X POST "https://<your-host>/mcp" \
   -H "Authorization: Bearer <MCP_ACCESS_TOKEN>" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 ```
-
-OAuth verification uses the same request shape, but the bearer value is an
-access token issued by your OIDC provider for your configured audience/scope.
-
-#### Azure Container Apps + Entra ID
-
-| Setting | Example |
-|--------|---------|
-| `mcpAuthMode` | `oauth` |
-| `oauthIssuerUrl` | `https://login.microsoftonline.com/<tenant>/v2.0` |
-| `oauthAudience` | `api://<api-client-id>` or app GUID |
-| `mcpResourceServerUrl` | `https://<container-app-fqdn>/mcp` (use deployment output) |
-| `mcpAccessToken` | Leave empty in OAuth mode |
-
-Register redirect URIs required by Claude in the Entra app registration. Do not put
-the OAuth client secret in Container App env vars — only Claude (or your user agent) holds it.
