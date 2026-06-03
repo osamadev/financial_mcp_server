@@ -74,9 +74,16 @@ def _build_auth():
     if MCP_AUTH_MODE == "static":
         if not MCP_ACCESS_TOKEN:
             raise RuntimeError("MCP_ACCESS_TOKEN is required when MCP_AUTH_MODE=static.")
-        # No AuthSettings in static mode — avoids advertising an OAuth sign-in endpoint
-        # (which causes Claude connector "Couldn't register with sign-in service" errors).
-        return StaticTokenVerifier(MCP_ACCESS_TOKEN), None
+        # FastMCP requires AuthSettings when token_verifier is set. Do not set
+        # resource_server_url unless MCP_RESOURCE_SERVER_URL is explicitly provided —
+        # that URL drives /.well-known/oauth-protected-resource and makes Claude expect OAuth.
+        static_resource_url = MCP_RESOURCE_SERVER_URL or None
+        auth_settings = AuthSettings(
+            issuer_url=(static_resource_url or f"http://{HOST}:{PORT}"),
+            resource_server_url=static_resource_url,
+            required_scopes=OAUTH_REQUIRED_SCOPES or None,
+        )
+        return StaticTokenVerifier(MCP_ACCESS_TOKEN), auth_settings
 
     if MCP_AUTH_MODE == "oauth":
         if not OAUTH_ISSUER_URL:

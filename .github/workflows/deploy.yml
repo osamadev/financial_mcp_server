@@ -29,6 +29,7 @@ jobs:
         run: |
           docker run -d --name fin -p 8000:8000 \
             -e MCP_TRANSPORT=streamable-http \
+            -e MCP_AUTH_MODE=static \
             -e MCP_ACCESS_TOKEN=ci-test-token \
             fin-mcp:ci
           ok=""

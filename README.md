@@ -145,8 +145,9 @@ OPENAI_MODEL=gpt-4o-mini
 
 ### HTTP Authentication Modes
 
-- `static`: validates a single bearer token (`MCP_ACCESS_TOKEN`). Does not expose
-  OAuth sign-in metadata (recommended for Postman and simple Claude bearer setup).
+- `static`: validates a single bearer token (`MCP_ACCESS_TOKEN`). Leave
+  `MCP_RESOURCE_SERVER_URL` unset so the server does not publish OAuth protected-resource
+  metadata (recommended for Postman and simple Claude bearer setup).
 - `oauth`: validates JWT access tokens from an external OIDC provider using
   `OAUTH_ISSUER_URL` + `OAUTH_AUDIENCE` (+ optional `OAUTH_JWKS_URL`).
   Client ID and client secret belong in the **connector / IdP app**, not on this server.
