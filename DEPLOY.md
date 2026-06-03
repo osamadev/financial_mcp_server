@@ -6,15 +6,19 @@ Host your own copy from this repository (fork first if you need a custom `azured
 
 <p align="center">
   <a href="https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json">
-    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" />
+    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" width="180" />
   </a>
   &nbsp;
   <a href="https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server">
-    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" />
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" width="180" />
+  </a>
+  &nbsp;
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/osamadev/financial_mcp_server">
+    <img src="https://deploy.cloud.run/button.svg" alt="Run on Google Cloud" height="40" width="180" />
   </a>
   &nbsp;
   <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker">
-    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" />
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" width="180" />
   </a>
 </p>
 
@@ -22,6 +26,7 @@ Host your own copy from this repository (fork first if you need a custom `azured
 |--------|-----------------|----------|---------------|
 | **Azure** | Container Apps + Log Analytics via `azuredeploy.json` | `mcpEndpoint` output → `https://<fqdn>/mcp` | `mcpAuthMode=static`; set `mcpAccessToken` in the portal |
 | **Render** | Docker web service via `render.yaml` | `https://<app>.onrender.com/mcp` | `MCP_AUTH_MODE=static`; set `MCP_ACCESS_TOKEN` when prompted |
+| **Google Cloud** | Cloud Run from repo `Dockerfile` ([`gcp/`](gcp/)) | `https://<service>.run.app/mcp` | Set `MCP_ACCESS_TOKEN` in Cloud Run after one-click deploy |
 | **Cloudflare** | Worker proxy in `cloudflare-worker/` only | `https://<worker>.workers.dev/mcp` | Not the Python backend — configure `MCP_BACKEND_URL` after backend deploy |
 
 > **Free tiers** sleep after ~15 min idle; the first MCP call after idle may take 30–60s.
@@ -60,6 +65,18 @@ Runs one always-on replica with sticky sessions (small steady cost, not scale-to
 
 See [`cloudflare-worker/README.md`](cloudflare-worker/README.md).
 
+#### Google Cloud Run
+
+1. Click **Run on Google Cloud** (builds from this repo’s `Dockerfile` via [deploy.cloud.run](https://deploy.cloud.run/)).
+2. Select project/region; allow the deploy to finish.
+3. Open the service → **Edit & deploy new revision** → **Variables & secrets**:
+   - `MCP_ACCESS_TOKEN` (static mode)
+   - Optional: `SERPAPI_API_KEY`, Telegram vars
+   - OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, `MCP_RESOURCE_SERVER_URL=https://<url>/mcp`
+4. MCP URL: `https://<service-url>/mcp`
+
+CLI alternative: [`gcp/deploy-cloudrun.sh`](gcp/deploy-cloudrun.sh) — details in [`gcp/README.md`](gcp/README.md).
+
 ---
 
 ### Option B — Run the prebuilt image anywhere
@@ -76,7 +93,7 @@ docker run -p 8000:8000 \
 # MCP endpoint -> http://localhost:8000/mcp
 ```
 
-- **VPS / Fly.io / Container Apps / ECS** can pull `ghcr.io/osamadev/financial_mcp_server:latest`.
+- **VPS / Fly.io / Container Apps / Cloud Run / ECS** can pull `ghcr.io/osamadev/financial_mcp_server:latest`.
 - **Cloud Run / App Runner** — mirror the image to your registry first.
 
 Make the GHCR package public: GitHub repo → **Packages** → image → **Package settings** → **Change visibility** → Public.
@@ -103,8 +120,8 @@ The MCP server **only validates JWTs**. It does **not** store an OAuth client se
 2. Name: e.g. `financial-mcp-api`. Note **Application (client) ID** and **Directory (tenant) ID**.
 3. **Expose an API**:
    - Set **Application ID URI** (e.g. `api://financial-mcp` or default `api://<api-client-id>`).
-   - **Add a scope**: name `mcp:tools` (or match `OAUTH_REQUIRED_SCOPES` on the server).
-   - Note the full scope clients request, e.g. `api://financial-mcp/mcp:tools`.
+   - **Add a scope**: name `mcp.tools` (must match `OAUTH_REQUIRED_SCOPES` on the server).
+   - Note the full scope clients request, e.g. `api://financial-mcp/mcp.tools`.
 
 ### 2. Register the OAuth client app (for Claude)
 
@@ -112,7 +129,7 @@ The MCP server **only validates JWTs**. It does **not** store an OAuth client se
 2. **Authentication** → **Add platform** → **Web** (or per [Claude custom connector](https://support.anthropic.com/) docs).
 3. Add **Redirect URIs** exactly as Claude documents for custom MCP connectors (wrong URI → sign-in failure).
 4. **Certificates & secrets** → **New client secret** → copy value once (used in Claude only).
-5. **API permissions** → **Add permission** → **My APIs** → `financial-mcp-api` → delegated `mcp:tools` (or your scope) → **Grant admin consent** if required.
+5. **API permissions** → **Add permission** → **My APIs** → `financial-mcp-api` → delegated `mcp.tools` → **Grant admin consent** if required.
 
 **Do not** put the client secret in Azure Container Apps, Render, or Docker env vars.
 
@@ -125,7 +142,7 @@ MCP_TRANSPORT=streamable-http
 MCP_AUTH_MODE=oauth
 OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
 OAUTH_AUDIENCE=api://<api-app-client-id>,<api-app-client-id>
-OAUTH_REQUIRED_SCOPES=mcp:tools
+OAUTH_REQUIRED_SCOPES=mcp.tools
 MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
 ```
 
@@ -138,7 +155,7 @@ MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
 | `MCP_RESOURCE_SERVER_URL` | `mcpResourceServerUrl` | Public URL ending in `/mcp` |
 | `MCP_ACCESS_TOKEN` | `mcpAccessToken` | Leave **empty** in OAuth mode |
 
-If Entra puts `api://financial-mcp/mcp:tools` in `scp`, set `OAUTH_REQUIRED_SCOPES` to that full string (not only `mcp:tools`).
+If Entra puts `api://financial-mcp/mcp.tools` in `scp`, set `OAUTH_REQUIRED_SCOPES` to that full string (not only `mcp.tools`).
 
 ### 4. Configure Claude custom connector
 

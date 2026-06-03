@@ -29,7 +29,7 @@ class AuthSecurityTests(unittest.TestCase):
                 "aud": "api://financial-mcp",
                 "exp": int(time.time()) + 300,
                 "iat": int(time.time()) - 1,
-                "scope": "mcp:tools mcp:resources",
+                "scope": "mcp.tools mcp.resources",
                 "sub": "user-123",
             },
             private_key,
@@ -40,7 +40,7 @@ class AuthSecurityTests(unittest.TestCase):
         verifier = OidcJwtVerifier(
             issuer_url="https://issuer.example.com",
             audience="api://financial-mcp",
-            required_scopes=["mcp:tools"],
+            required_scopes=["mcp.tools"],
             jwks_url="https://issuer.example.com/jwks",
         )
 
@@ -52,7 +52,7 @@ class AuthSecurityTests(unittest.TestCase):
         access_token = asyncio.run(verifier.verify_token(token))
         self.assertIsNotNone(access_token)
         self.assertEqual(access_token.client_id, "user-123")
-        self.assertIn("mcp:tools", access_token.scopes)
+        self.assertIn("mcp.tools", access_token.scopes)
 
     def test_oidc_verifier_rejects_missing_required_scope(self):
         private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
@@ -77,7 +77,7 @@ class AuthSecurityTests(unittest.TestCase):
         verifier = OidcJwtVerifier(
             issuer_url="https://issuer.example.com",
             audience="api://financial-mcp",
-            required_scopes=["mcp:tools"],
+            required_scopes=["mcp.tools"],
             jwks_url="https://issuer.example.com/jwks",
         )
 
@@ -101,7 +101,7 @@ class AuthSecurityTests(unittest.TestCase):
                 "aud": "client-guid",
                 "exp": int(time.time()) + 300,
                 "iat": int(time.time()) - 1,
-                "scope": "mcp:tools",
+                "scope": "mcp.tools",
                 "sub": "user-456",
             },
             private_key,
@@ -112,7 +112,7 @@ class AuthSecurityTests(unittest.TestCase):
         verifier = OidcJwtVerifier(
             issuer_url="https://issuer.example.com",
             audience="api://financial-mcp,client-guid",
-            required_scopes=["mcp:tools"],
+            required_scopes=["mcp.tools"],
             jwks_url="https://issuer.example.com/jwks",
         )
 

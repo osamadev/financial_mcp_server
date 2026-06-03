@@ -50,7 +50,7 @@ OAUTH_ISSUER_URL = os.getenv("OAUTH_ISSUER_URL", "").strip()
 OAUTH_JWKS_URL = os.getenv("OAUTH_JWKS_URL", "").strip()
 OAUTH_AUDIENCE = os.getenv("OAUTH_AUDIENCE", "").strip()
 OAUTH_REQUIRED_SCOPES = [
-    scope for scope in os.getenv("OAUTH_REQUIRED_SCOPES", "mcp:tools").split() if scope
+    scope for scope in os.getenv("OAUTH_REQUIRED_SCOPES", "mcp.tools").split() if scope
 ]
 MCP_RESOURCE_SERVER_URL = os.getenv("MCP_RESOURCE_SERVER_URL", "").strip()
 ALLOW_UNAUTHENTICATED_HTTP = (

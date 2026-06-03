@@ -26,7 +26,7 @@ class StaticTokenVerifier(TokenVerifier):
         return AccessToken(
             token=token,
             client_id=self._client_id,
-            scopes=["mcp:tools", "mcp:resources"],
+            scopes=["mcp.tools", "mcp.resources"],
         )
 
 

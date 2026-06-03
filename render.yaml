@@ -43,6 +43,6 @@ services:
       - key: OAUTH_AUDIENCE
         sync: false
       - key: OAUTH_REQUIRED_SCOPES
-        value: mcp:tools
+        value: mcp.tools
       - key: MCP_RESOURCE_SERVER_URL
         sync: false

@@ -95,7 +95,7 @@
     },
     "oauthRequiredScopes": {
       "type": "string",
-      "defaultValue": "mcp:tools",
+      "defaultValue": "mcp.tools",
       "metadata": { "description": "Space-separated required scopes for OAuth mode." }
     },
     "mcpResourceServerUrl": {

@@ -2,18 +2,22 @@
 
 <p align="center">
   <a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json">
-    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" />
+    <img src="https://aka.ms/deploytoazurebutton" alt="Deploy to Azure" height="40" width="180" />
   </a>
   &nbsp;
   <a href="https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server">
-    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" />
+    <img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" height="40" width="180" />
+  </a>
+  &nbsp;
+  <a href="https://deploy.cloud.run/?git_repo=https://github.com/osamadev/financial_mcp_server">
+    <img src="https://deploy.cloud.run/button.svg" alt="Run on Google Cloud" height="40" width="180" />
   </a>
   &nbsp;
   <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker">
-    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" />
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" width="180" />
   </a>
 </p>
-<p align="center"><sub>Azure / Render host the MCP backend · Cloudflare deploys the optional HTTPS proxy only</sub></p>
+<p align="center"><sub>Azure / Render / GCP Cloud Run host the MCP backend · Cloudflare deploys the optional HTTPS proxy</sub></p>
 
 A custom Model Context Protocol (MCP) server for advanced financial analysis, stock monitoring, and real-time market intelligence. This server provides a suite of tools and API endpoints for portfolio management, market summaries, stock alerts, and contextual financial insights, designed for seamless integration with Claude Desktop and other MCP-compatible clients.
 
@@ -28,6 +32,7 @@ to launch a remote MCP endpoint at `https://<host>/mcp`.
 |----------|---------|--------------|-------------|
 | [Azure Container Apps](https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json) | Python MCP backend (`azuredeploy.json`) | `mcpAuthMode=static` | Set `mcpAuthMode=oauth` + Entra settings in the portal — see [OAuth (Entra ID)](DEPLOY.md#oauth-entra-id) |
 | [Render](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`render.yaml`) | `MCP_AUTH_MODE=static` | Add OAuth env vars in the Render dashboard after deploy |
+| [Google Cloud Run](https://deploy.cloud.run/?git_repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`Dockerfile` / GHCR) | `MCP_AUTH_MODE=static` | Set OAuth env vars in Cloud Run → **Variables & secrets** — see [`gcp/README.md`](gcp/README.md) |
 | [Cloudflare Worker](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker) | HTTPS proxy only (`cloudflare-worker/`) | `WORKER_AUTH_MODE=static` | Use `WORKER_AUTH_MODE=passthrough` when the backend uses OAuth JWTs |
 
 - Local default: `MCP_TRANSPORT=stdio` (Claude Desktop / local MCP clients)
@@ -43,7 +48,7 @@ to launch a remote MCP endpoint at `https://<host>/mcp`.
 - **Configurable Price Alerts**: Set per-ticker `above` / `below` thresholds and evaluate triggered alert events.
 - **News + Context Layer**: Retrieve market news and optional sentiment-rich context summaries for research workflows.
 - **Secure Streamable HTTP**: Static bearer (`MCP_ACCESS_TOKEN`) or OAuth JWT validation (`MCP_AUTH_MODE=oauth`) for public deployments.
-- **Cloud-Ready Deployment**: Docker + one-click manifests for Azure Container Apps, Render, and Cloudflare Worker proxy.
+- **Cloud-Ready Deployment**: Docker + one-click deploys for Azure Container Apps, Render, Google Cloud Run, and Cloudflare Worker proxy.
 
 ---
 
@@ -133,7 +138,7 @@ OAUTH_ISSUER_URL=
 # Optional JWKS override (otherwise discovered from issuer metadata)
 # OAUTH_JWKS_URL=
 OAUTH_AUDIENCE=
-OAUTH_REQUIRED_SCOPES=mcp:tools
+OAUTH_REQUIRED_SCOPES=mcp.tools
 MCP_RESOURCE_SERVER_URL=
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id

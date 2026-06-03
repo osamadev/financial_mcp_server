@@ -4,7 +4,11 @@ This Worker proxies MCP traffic to the Python backend while enforcing bearer aut
 
 ## Deploy
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker)
+<p align="center">
+  <a href="https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker">
+    <img src="https://deploy.workers.cloudflare.com/button" alt="Deploy to Cloudflare" height="40" width="180" />
+  </a>
+</p>
 
 Deploy the **backend** on [Azure or Render](../DEPLOY.md) first, then set Worker variables:
 
