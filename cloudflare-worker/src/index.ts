@@ -1,6 +1,7 @@
 export interface Env {
   MCP_BACKEND_URL: string;
-  MCP_ACCESS_TOKEN: string;
+  MCP_ACCESS_TOKEN?: string;
+  WORKER_AUTH_MODE?: string;
 }
 
 function getBearerToken(value: string | null): string | null {
@@ -18,16 +19,21 @@ function forbidden(message = "Forbidden"): Response {
   return Response.json({ error: message }, { status: 403 });
 }
 
-function validateConfig(env: Env): Response | null {
+function resolveWorkerAuthMode(env: Env): "static" | "passthrough" {
+  const mode = (env.WORKER_AUTH_MODE || "static").toLowerCase();
+  return mode === "passthrough" ? "passthrough" : "static";
+}
+
+function validateConfig(env: Env, mode: "static" | "passthrough"): Response | null {
   if (!env.MCP_BACKEND_URL) {
     return Response.json(
       { error: "MCP_BACKEND_URL is not configured." },
       { status: 500 },
     );
   }
-  if (!env.MCP_ACCESS_TOKEN) {
+  if (mode === "static" && !env.MCP_ACCESS_TOKEN) {
     return Response.json(
-      { error: "MCP_ACCESS_TOKEN is not configured." },
+      { error: "MCP_ACCESS_TOKEN is required in WORKER_AUTH_MODE=static." },
       { status: 500 },
     );
   }
@@ -42,7 +48,12 @@ function buildBackendUrl(requestUrl: URL, env: Env): URL {
   return target;
 }
 
-function copyHeaders(request: Request, env: Env): Headers {
+function copyHeaders(
+  request: Request,
+  env: Env,
+  mode: "static" | "passthrough",
+  incomingToken: string,
+): Headers {
   const headers = new Headers();
   const passthroughHeaders = [
     "accept",
@@ -55,13 +66,18 @@ function copyHeaders(request: Request, env: Env): Headers {
     const value = request.headers.get(headerName);
     if (value) headers.set(headerName, value);
   }
-  headers.set("authorization", `Bearer ${env.MCP_ACCESS_TOKEN}`);
+  if (mode === "passthrough") {
+    headers.set("authorization", `Bearer ${incomingToken}`);
+  } else {
+    headers.set("authorization", `Bearer ${env.MCP_ACCESS_TOKEN}`);
+  }
   return headers;
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const mode = resolveWorkerAuthMode(env);
 
     if (url.pathname === "/health") {
       return Response.json({ ok: true, service: "financial-mcp-cloudflare-proxy" });
@@ -71,17 +87,19 @@ export default {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
 
-    const configError = validateConfig(env);
+    const configError = validateConfig(env, mode);
     if (configError) return configError;
 
     const incomingToken = getBearerToken(request.headers.get("authorization"));
     if (!incomingToken) return unauthorized("Missing bearer token.");
-    if (incomingToken !== env.MCP_ACCESS_TOKEN) return forbidden("Invalid token.");
+    if (mode === "static" && incomingToken !== env.MCP_ACCESS_TOKEN) {
+      return forbidden("Invalid token.");
+    }
 
     const backendUrl = buildBackendUrl(url, env);
     const response = await fetch(backendUrl.toString(), {
       method: request.method,
-      headers: copyHeaders(request, env),
+      headers: copyHeaders(request, env, mode, incomingToken),
       body: request.body,
       redirect: "manual",
     });

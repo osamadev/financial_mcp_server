@@ -8,7 +8,7 @@
 
 - **Azure Container Apps** uses `azuredeploy.json` (ARM). The button opens the
   Azure Portal pre-filled; pick a resource group, optionally paste your
-  `mcpAccessToken` plus optional `serpApiKey`/Telegram keys (stored as Container App secrets), and deploy. It
+  auth/environment values (`mcpAuthMode`, `mcpAccessToken` for static mode, or OAuth settings for oauth mode) plus optional `serpApiKey`/Telegram keys, and deploy. It
   provisions a Container Apps environment + Log Analytics and pulls the public
   GHCR image. The MCP endpoint is the app's HTTPS FQDN + `/mcp` (shown as the
   `mcpEndpoint` output). Runs 1 always-on replica with sticky sessions (so MCP
@@ -25,7 +25,8 @@
 1. Deploy the Python MCP backend to **Azure** or **Render**.
 2. Deploy the Cloudflare Worker proxy, then set:
    - `MCP_BACKEND_URL=https://<your-azure-or-render-host>/mcp`
-   - `MCP_ACCESS_TOKEN=<same-token-as-backend>`
+   - `WORKER_AUTH_MODE=static` and `MCP_ACCESS_TOKEN=<same-token-as-backend>` for static mode, OR
+   - `WORKER_AUTH_MODE=passthrough` for OAuth mode so client JWT is forwarded to backend.
 
 The Worker validates the caller's bearer token and forwards MCP traffic to the
 backend with the same token.
@@ -67,9 +68,21 @@ custom connector**, paste:
 The server must be reachable
 on the public internet (Claude connects from Anthropic's cloud, not your machine).
 
-When HTTP security is enabled (recommended), include:
-- Header: `Authorization: Bearer <MCP_ACCESS_TOKEN>`
-- Rotate `MCP_ACCESS_TOKEN` whenever sharing or revoking access.
+For OAuth mode in Claude connector:
+- Set connector auth to your OIDC provider.
+- Provide OAuth Client ID and Client Secret in connector settings.
+- Ensure provider app allows the callback/redirect URIs required by Claude.
+- Request audience/scope matching backend settings (`OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES`).
+
+When HTTP security is enabled (recommended), choose one auth mode:
+- **Static mode** (`MCP_AUTH_MODE=static`):
+  - Send `Authorization: Bearer <MCP_ACCESS_TOKEN>`.
+  - Rotate `MCP_ACCESS_TOKEN` whenever sharing or revoking access.
+- **OAuth mode** (`MCP_AUTH_MODE=oauth`):
+  - Configure `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, optional `OAUTH_JWKS_URL`,
+    required scopes, and `MCP_RESOURCE_SERVER_URL`.
+  - Client obtains JWT from your OIDC provider (using client ID/client secret
+    in connector/app settings) and sends it as bearer token.
 
 Quick verification after deploy:
 
@@ -80,3 +93,19 @@ curl -X POST "https://<your-host>/mcp" \
   -H "Authorization: Bearer <MCP_ACCESS_TOKEN>" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
 ```
+
+OAuth verification uses the same request shape, but the bearer value is an
+access token issued by your OIDC provider for your configured audience/scope.
+
+#### Azure Container Apps + Entra ID
+
+| Setting | Example |
+|--------|---------|
+| `mcpAuthMode` | `oauth` |
+| `oauthIssuerUrl` | `https://login.microsoftonline.com/<tenant>/v2.0` |
+| `oauthAudience` | `api://<api-client-id>` or app GUID |
+| `mcpResourceServerUrl` | `https://<container-app-fqdn>/mcp` (use deployment output) |
+| `mcpAccessToken` | Leave empty in OAuth mode |
+
+Register redirect URIs required by Claude in the Entra app registration. Do not put
+the OAuth client secret in Container App env vars — only Claude (or your user agent) holds it.

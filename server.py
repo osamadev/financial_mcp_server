@@ -26,7 +26,7 @@ from services.portfolio import (
     remove_ticker,
     set_price_alert,
 )
-from services.security import StaticTokenVerifier
+from services.security import OidcJwtVerifier, StaticTokenVerifier
 from services.summarizer import summarize_articles
 
 load_dotenv()
@@ -44,7 +44,15 @@ logger = logging.getLogger(__name__)
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
+MCP_AUTH_MODE = os.getenv("MCP_AUTH_MODE", "static").lower()
 MCP_ACCESS_TOKEN = os.getenv("MCP_ACCESS_TOKEN", "").strip()
+OAUTH_ISSUER_URL = os.getenv("OAUTH_ISSUER_URL", "").strip()
+OAUTH_JWKS_URL = os.getenv("OAUTH_JWKS_URL", "").strip()
+OAUTH_AUDIENCE = os.getenv("OAUTH_AUDIENCE", "").strip()
+OAUTH_REQUIRED_SCOPES = [
+    scope for scope in os.getenv("OAUTH_REQUIRED_SCOPES", "mcp:tools").split() if scope
+]
+MCP_RESOURCE_SERVER_URL = os.getenv("MCP_RESOURCE_SERVER_URL", "").strip()
 ALLOW_UNAUTHENTICATED_HTTP = (
     os.getenv("ALLOW_UNAUTHENTICATED_HTTP", "false").lower() in ("1", "true", "yes")
 )
@@ -59,16 +67,44 @@ def resolve_transport() -> str:
     return "stdio"
 
 
-TOKEN_VERIFIER = StaticTokenVerifier(MCP_ACCESS_TOKEN) if MCP_ACCESS_TOKEN else None
-AUTH_SETTINGS = None
-if TOKEN_VERIFIER:
-    auth_base_url = os.getenv("MCP_AUTH_ISSUER_URL", f"http://{HOST}:{PORT}")
-    resource_server_url = os.getenv("MCP_RESOURCE_SERVER_URL", auth_base_url)
-    AUTH_SETTINGS = AuthSettings(
-        issuer_url=auth_base_url,
-        resource_server_url=resource_server_url,
-        required_scopes=["mcp:tools"],
+def _build_auth():
+    if MCP_AUTH_MODE == "none":
+        return None, None
+
+    if MCP_AUTH_MODE == "static":
+        if not MCP_ACCESS_TOKEN:
+            raise RuntimeError("MCP_ACCESS_TOKEN is required when MCP_AUTH_MODE=static.")
+        # No AuthSettings in static mode — avoids advertising an OAuth sign-in endpoint
+        # (which causes Claude connector "Couldn't register with sign-in service" errors).
+        return StaticTokenVerifier(MCP_ACCESS_TOKEN), None
+
+    if MCP_AUTH_MODE == "oauth":
+        if not OAUTH_ISSUER_URL:
+            raise RuntimeError("OAUTH_ISSUER_URL is required when MCP_AUTH_MODE=oauth.")
+        if not OAUTH_AUDIENCE:
+            raise RuntimeError("OAUTH_AUDIENCE is required when MCP_AUTH_MODE=oauth.")
+        if not MCP_RESOURCE_SERVER_URL:
+            raise RuntimeError("MCP_RESOURCE_SERVER_URL is required when MCP_AUTH_MODE=oauth.")
+
+        verifier = OidcJwtVerifier(
+            issuer_url=OAUTH_ISSUER_URL,
+            audience=OAUTH_AUDIENCE,
+            required_scopes=OAUTH_REQUIRED_SCOPES,
+            jwks_url=(OAUTH_JWKS_URL or None),
+        )
+        auth_settings = AuthSettings(
+            issuer_url=OAUTH_ISSUER_URL,
+            resource_server_url=MCP_RESOURCE_SERVER_URL,
+            required_scopes=OAUTH_REQUIRED_SCOPES,
+        )
+        return verifier, auth_settings
+
+    raise RuntimeError(
+        f"Unsupported MCP_AUTH_MODE={MCP_AUTH_MODE}. Use static, oauth, or none."
     )
+
+
+TOKEN_VERIFIER, AUTH_SETTINGS = _build_auth()
 
 mcp = FastMCP(
     "Financial-MCP-Server",
@@ -250,13 +286,23 @@ def alert_rules_resource() -> Dict[str, Any]:
 
 if __name__ == "__main__":
     transport = resolve_transport()
-    if transport == "streamable-http" and not MCP_ACCESS_TOKEN and not ALLOW_UNAUTHENTICATED_HTTP:
-        raise RuntimeError(
-            "MCP_ACCESS_TOKEN is required for streamable-http transport. "
-            "Set ALLOW_UNAUTHENTICATED_HTTP=true only for local testing."
-        )
+    if transport == "streamable-http":
+        if MCP_AUTH_MODE == "none" and not ALLOW_UNAUTHENTICATED_HTTP:
+            raise RuntimeError(
+                "MCP_AUTH_MODE=none is only allowed when ALLOW_UNAUTHENTICATED_HTTP=true."
+            )
+        if MCP_AUTH_MODE == "static" and not MCP_ACCESS_TOKEN:
+            raise RuntimeError("MCP_ACCESS_TOKEN is required when MCP_AUTH_MODE=static.")
+        if MCP_AUTH_MODE == "oauth" and (
+            not OAUTH_ISSUER_URL or not OAUTH_AUDIENCE or not MCP_RESOURCE_SERVER_URL
+        ):
+            raise RuntimeError(
+                "OAuth mode requires OAUTH_ISSUER_URL, OAUTH_AUDIENCE, and MCP_RESOURCE_SERVER_URL."
+            )
 
-    logger.info(f"Starting Financial-MCP-Server with transport={transport} on {HOST}:{PORT}")
+    logger.info(
+        f"Starting Financial-MCP-Server with transport={transport}, auth_mode={MCP_AUTH_MODE} on {HOST}:{PORT}"
+    )
     try:
         mcp.run(transport=transport)
     except json.JSONDecodeError as je:

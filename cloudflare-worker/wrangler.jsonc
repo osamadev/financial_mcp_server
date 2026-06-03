@@ -4,6 +4,7 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-06-02",
   "vars": {
-    "MCP_BACKEND_URL": "https://your-backend.example.com/mcp"
+    "MCP_BACKEND_URL": "https://your-backend.example.com/mcp",
+    "WORKER_AUTH_MODE": "static"
   }
 }

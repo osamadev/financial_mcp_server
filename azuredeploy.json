@@ -22,7 +22,14 @@
     },
     "mcpAccessToken": {
       "type": "securestring",
-      "metadata": { "description": "Required bearer token for streamable-http access." }
+      "defaultValue": "",
+      "metadata": { "description": "Bearer token for MCP_AUTH_MODE=static. Optional when mcpAuthMode=oauth." }
+    },
+    "mcpAuthMode": {
+      "type": "string",
+      "defaultValue": "static",
+      "allowedValues": ["static", "oauth", "none"],
+      "metadata": { "description": "Authentication mode for streamable-http." }
     },
     "logLevel": {
       "type": "string",
@@ -70,6 +77,31 @@
       "type": "string",
       "defaultValue": "",
       "metadata": { "description": "Optional. OpenAI-compatible base URL override." }
+    },
+    "oauthIssuerUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OIDC issuer URL used when mcpAuthMode=oauth." }
+    },
+    "oauthJwksUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional OIDC JWKS URL override." }
+    },
+    "oauthAudience": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "OIDC audience accepted by the MCP server." }
+    },
+    "oauthRequiredScopes": {
+      "type": "string",
+      "defaultValue": "mcp:tools",
+      "metadata": { "description": "Space-separated required scopes for OAuth mode." }
+    },
+    "mcpResourceServerUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Public MCP server URL used as OAuth resource server metadata URL." }
     }
   },
   "variables": {
@@ -133,7 +165,7 @@
               "name": "financial-mcp-server",
               "image": "[parameters('image')]",
               "resources": { "cpu": "[json('0.5')]", "memory": "1.0Gi" },
-              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel')), createObject('name', 'SUMMARIZER_PROVIDER', 'value', parameters('summarizerProvider')), createObject('name', 'OPENAI_MODEL', 'value', parameters('openAiModel'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'OPENAI_API_KEY', 'secretRef', 'openai-api-key'))), if(empty(parameters('openAiBaseUrl')), createArray(), createArray(createObject('name', 'OPENAI_BASE_URL', 'value', parameters('openAiBaseUrl')))))]"
+              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'MCP_AUTH_MODE', 'value', parameters('mcpAuthMode')), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel')), createObject('name', 'SUMMARIZER_PROVIDER', 'value', parameters('summarizerProvider')), createObject('name', 'OPENAI_MODEL', 'value', parameters('openAiModel')), createObject('name', 'OAUTH_REQUIRED_SCOPES', 'value', parameters('oauthRequiredScopes'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'OPENAI_API_KEY', 'secretRef', 'openai-api-key'))), if(empty(parameters('openAiBaseUrl')), createArray(), createArray(createObject('name', 'OPENAI_BASE_URL', 'value', parameters('openAiBaseUrl')))), if(empty(parameters('oauthIssuerUrl')), createArray(), createArray(createObject('name', 'OAUTH_ISSUER_URL', 'value', parameters('oauthIssuerUrl')))), if(empty(parameters('oauthJwksUrl')), createArray(), createArray(createObject('name', 'OAUTH_JWKS_URL', 'value', parameters('oauthJwksUrl')))), if(empty(parameters('oauthAudience')), createArray(), createArray(createObject('name', 'OAUTH_AUDIENCE', 'value', parameters('oauthAudience')))), if(empty(parameters('mcpResourceServerUrl')), createArray(), createArray(createObject('name', 'MCP_RESOURCE_SERVER_URL', 'value', parameters('mcpResourceServerUrl')))))]"
             }
           ],
           "scale": { "minReplicas": 1, "maxReplicas": 1 }

@@ -1,2 +1,4 @@
-MCP_ACCESS_TOKEN=replace_with_same_backend_token
 MCP_BACKEND_URL=https://your-azure-or-render-host/mcp
+WORKER_AUTH_MODE=static
+# Required when WORKER_AUTH_MODE=static
+MCP_ACCESS_TOKEN=replace_with_same_backend_token

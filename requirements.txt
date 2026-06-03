@@ -9,3 +9,4 @@ matplotlib
 python-dotenv
 google-search-results
 mcp[cli]
+PyJWT[crypto]

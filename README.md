@@ -22,7 +22,7 @@ Azure, Render, or Cloudflare Worker proxy.
 
 - Local default: `MCP_TRANSPORT=stdio` (Claude Desktop / local MCP clients)
 - Cloud default in container manifests: `MCP_TRANSPORT=streamable-http`
-- Secure HTTP default: set `MCP_ACCESS_TOKEN` and send `Authorization: Bearer <token>`
+- Authentication mode is configurable with `MCP_AUTH_MODE=static|oauth|none`
 
 ---
 
@@ -115,7 +115,16 @@ MCP_TRANSPORT=stdio
 HOST=0.0.0.0
 PORT=8000
 LOG_LEVEL=INFO
+MCP_AUTH_MODE=static
+# Used when MCP_AUTH_MODE=static
 MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
+# Used when MCP_AUTH_MODE=oauth
+OAUTH_ISSUER_URL=
+# Optional JWKS override (otherwise discovered from issuer metadata)
+# OAUTH_JWKS_URL=
+OAUTH_AUDIENCE=
+OAUTH_REQUIRED_SCOPES=mcp:tools
+MCP_RESOURCE_SERVER_URL=
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
@@ -133,6 +142,34 @@ OPENAI_MODEL=gpt-4o-mini
 # Optional persistent path for portfolio file in cloud
 # PORTFOLIO_FILE=/data/user_portfolio.json
 ```
+
+### HTTP Authentication Modes
+
+- `static`: validates a single bearer token (`MCP_ACCESS_TOKEN`). Does not expose
+  OAuth sign-in metadata (recommended for Postman and simple Claude bearer setup).
+- `oauth`: validates JWT access tokens from an external OIDC provider using
+  `OAUTH_ISSUER_URL` + `OAUTH_AUDIENCE` (+ optional `OAUTH_JWKS_URL`).
+  Client ID and client secret belong in the **connector / IdP app**, not on this server.
+- `none`: only for local tests with `ALLOW_UNAUTHENTICATED_HTTP=true`.
+
+#### Microsoft Entra ID (Azure AD) example (`MCP_AUTH_MODE=oauth`)
+
+1. Register an API app and a separate client app (or use one app with exposed scope).
+2. Set the API **Application ID URI** or app ID as audience (comma-separate if you need both).
+3. Configure the MCP container:
+
+```env
+MCP_AUTH_MODE=oauth
+MCP_TRANSPORT=streamable-http
+OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
+OAUTH_AUDIENCE=api://<api-app-client-id>,<api-app-client-id>
+OAUTH_REQUIRED_SCOPES=mcp:tools
+MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
+```
+
+4. In Claude: **Add custom connector** → OAuth → enter your Entra app **Client ID** and
+   **Client secret**, redirect URIs from Claude’s docs, and scopes matching `OAUTH_REQUIRED_SCOPES`.
+5. If using the Cloudflare proxy: `WORKER_AUTH_MODE=passthrough` so the user JWT reaches the backend.
 
 ---
 
@@ -169,6 +206,7 @@ OPENAI_MODEL=gpt-4o-mini
      TELEGRAM_BOT_TOKEN=your_bot_token
      TELEGRAM_USER_ID=your_chat_id
      SERPAPI_API_KEY=your_serpapi_key
+     MCP_AUTH_MODE=static
      MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
      SUMMARIZER_PROVIDER=ollama
      OLLAMA_HOST=http://localhost:11434
@@ -241,7 +279,7 @@ After installing and connecting your custom Financial MCP Server, all available 
 
 Below is a screenshot showing how the tools from your MCP server will be listed and toggled in Claude Desktop:
 
-![Claude Desktop MCP Tools Example](./screenshot_claude_tools.png)
+![Claude Desktop MCP Tools Example](images/screenshot_claude_tools.png)
 
 - Each tool (e.g., `financial_context`, `market_summary`, `add_stock`, etc.) can be enabled or disabled as needed.
 - This seamless integration allows you to interact with your financial analysis server using natural language and tool-based workflows within Claude Desktop.
