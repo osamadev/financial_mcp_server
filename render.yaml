@@ -15,6 +15,8 @@ services:
         value: INFO
       - key: HOST
         value: 0.0.0.0
+      - key: ALLOW_UNAUTHENTICATED_HTTP
+        value: false
       # Render injects PORT automatically; server.py reads it.
       - key: MCP_ACCESS_TOKEN
         sync: false
@@ -25,6 +27,10 @@ services:
       - key: TELEGRAM_BOT_TOKEN
         sync: false
       - key: TELEGRAM_USER_ID
+        sync: false
+      - key: ENABLE_TELEGRAM_ALERTS
+        value: false
+      - key: PORTFOLIO_FILE
         sync: false
       - key: OLLAMA_HOST
         sync: false

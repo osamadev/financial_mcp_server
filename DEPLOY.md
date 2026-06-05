@@ -42,7 +42,7 @@ Host your own copy from this repository (fork first if you need a custom `azured
 2. Pick a resource group and region.
 3. **Static auth (simplest):** leave `mcpAuthMode` as `static`, set `mcpAccessToken`.
 4. **OAuth auth:** set `mcpAuthMode` to `oauth`, leave `mcpAccessToken` empty, fill `oauthIssuerUrl`, `oauthAudience`, `oauthRequiredScopes`, and `mcpResourceServerUrl` (use `https://<fqdn>/mcp` after first deploy, or your known hostname). Optional: set `oauthScopesSupported` to the full Entra scope (`api://<api-app-id>/mcp.tools`) to steer strict clients.
-5. Optional: `serpApiKey`, `alphaVantageApiKey`, Telegram vars, summarizer settings.
+5. Optional: `serpApiKey`, `alphaVantageApiKey`, Telegram vars, `enableTelegramAlerts`, `portfolioFile`, `ollamaHost`, `ollamaModel`, OpenAI settings, and broker settings (`oauthBroker*`).
 6. Deploy; copy the **`mcpEndpoint`** output for Claude.
 
 Runs one always-on replica with sticky sessions (small steady cost, not scale-to-zero).
@@ -51,7 +51,7 @@ Runs one always-on replica with sticky sessions (small steady cost, not scale-to
 
 1. Click **Deploy to Render**.
 2. Connect the repo; Render applies `render.yaml` (Docker, `streamable-http`).
-3. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars.
+3. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`, and `OAUTH_BROKER_*`.
 4. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
 
 #### Cloudflare Worker (proxy)
@@ -71,8 +71,9 @@ See [`cloudflare-worker/README.md`](cloudflare-worker/README.md).
 2. Select project/region; allow the deploy to finish.
 3. Open the service → **Edit & deploy new revision** → **Variables & secrets**:
    - `MCP_ACCESS_TOKEN` (static mode)
-   - Optional: `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars
-   - OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, optional `OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools`, and `MCP_RESOURCE_SERVER_URL=https://<url>/mcp`
+   - Optional: `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`
+   - OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_ISSUER_URLS`, `OAUTH_JWKS_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, optional `OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools`, and `MCP_RESOURCE_SERVER_URL=https://<url>/mcp`
+   - Broker: `OAUTH_BROKER_ENABLED`, `OAUTH_BROKER_ISSUER_URL`, `OAUTH_BROKER_CLIENT_ID`, `OAUTH_BROKER_CLIENT_SECRET`, `OAUTH_BROKER_SCOPE`
 4. MCP URL: `https://<service-url>/mcp`
 
 CLI alternative: [`gcp/deploy-cloudrun.sh`](gcp/deploy-cloudrun.sh) — details in [`gcp/README.md`](gcp/README.md).
