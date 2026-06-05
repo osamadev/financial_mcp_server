@@ -144,6 +144,11 @@ OAUTH_REQUIRED_SCOPES=mcp.tools
 # Optional metadata scopes advertised to clients (use full Entra scope if needed):
 # OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools
 MCP_RESOURCE_SERVER_URL=
+# Optional: built-in OAuth broker for Claude + Entra resource/scope translation
+# OAUTH_BROKER_ENABLED=false
+# OAUTH_BROKER_SCOPE=api://<api-app-id>/mcp.tools
+# OAUTH_BROKER_CLIENT_ID=
+# OAUTH_BROKER_CLIENT_SECRET=
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id
 SERPAPI_API_KEY=your_serpapi_key
@@ -182,6 +187,10 @@ For Claude OAuth connectors, register an Entra **API app** and a separate **clie
 backend with `MCP_AUTH_MODE=oauth`, then configure Claude with the client app credentials.
 
 Step-by-step Entra and Claude setup: **[`DEPLOY.md` — OAuth (Entra ID)](DEPLOY.md#oauth-entra-id)**.
+
+If Claude keeps failing with Entra `AADSTS9010010` while Postman works with the
+same token, enable the built-in broker described in
+**[`DEPLOY.md` — OAuth Broker For Claude + Entra](DEPLOY.md#oauth-broker-for-claude--entra)**.
 
 ---
 

@@ -218,6 +218,94 @@ Expect **HTTP 200** with a valid token; **401** if issuer, audience, or scopes d
 
 If Claude always sends `resource=https://<mcp-host>/mcp` and you cannot override that behavior in connector settings, place a small OAuth broker in front of Entra. The broker should expose MCP-compatible metadata and translate authorize/token requests to Entra with consistent API resource/scope values.
 
+## OAuth Broker For Claude + Entra
+
+Use this mode when:
+
+- Postman works with an Entra access token, and
+- Claude still fails with `AADSTS9010010` because it mixes the MCP resource URL with Entra API scopes.
+
+The built-in broker keeps Claude on the same MCP host, but advertises local OAuth endpoints:
+
+```text
+/.well-known/oauth-authorization-server
+/authorize
+/token
+/register
+```
+
+The broker forwards authorization and token requests to Entra while removing the MCP
+`resource=https://<host>/mcp` value and forcing the correct Entra API scope.
+
+### Broker environment
+
+For your current Azure deployment:
+
+```env
+MCP_AUTH_MODE=oauth
+MCP_RESOURCE_SERVER_URL=https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io/mcp
+
+OAUTH_ISSUER_URL=https://login.microsoftonline.com/c5eef0ea-2adf-445f-8104-084ab26b162b/v2.0
+OAUTH_ISSUER_URLS=https://sts.windows.net/c5eef0ea-2adf-445f-8104-084ab26b162b/
+OAUTH_AUDIENCE=api://43a809eb-5b6a-4299-84cc-9aa98514810e,43a809eb-5b6a-4299-84cc-9aa98514810e
+OAUTH_REQUIRED_SCOPES=mcp.tools
+OAUTH_SCOPES_SUPPORTED=api://43a809eb-5b6a-4299-84cc-9aa98514810e/mcp.tools
+
+OAUTH_BROKER_ENABLED=true
+OAUTH_BROKER_ISSUER_URL=https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io
+OAUTH_BROKER_SCOPE=api://43a809eb-5b6a-4299-84cc-9aa98514810e/mcp.tools
+```
+
+Optional overrides:
+
+```env
+OAUTH_BROKER_CLIENT_ID=<financial-mcp-claude-client-app-id>
+OAUTH_BROKER_CLIENT_SECRET=<financial-mcp-claude-client-secret>
+```
+
+If those are empty, the broker forwards the `client_id` and `client_secret` Claude
+sends to `/authorize` and `/token`.
+
+### Claude connector with broker
+
+- MCP URL: `https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io/mcp`
+- OAuth Client ID: `financial-mcp-claude-client` app ID
+- OAuth Client Secret: `financial-mcp-claude-client` secret
+- Scope: `api://43a809eb-5b6a-4299-84cc-9aa98514810e/mcp.tools`
+
+If Claude exposes a Resource field, leave it empty or set the API URI:
+`api://43a809eb-5b6a-4299-84cc-9aa98514810e`.
+
+### Entra app registration
+
+The Entra client app must allow the redirect URI Claude uses:
+
+```text
+https://claude.ai/api/mcp/auth_callback
+```
+
+The API app must expose `mcp.tools`, and the client app must have delegated
+permission to that scope with admin consent.
+
+### Verify broker metadata
+
+```bash
+curl https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io/.well-known/oauth-authorization-server
+```
+
+Expected:
+
+```json
+{
+  "issuer": "https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io",
+  "authorization_endpoint": "https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io/authorize",
+  "token_endpoint": "https://financial-mcp-server.calmbush-57696270.westeurope.azurecontainerapps.io/token",
+  "scopes_supported": [
+    "api://43a809eb-5b6a-4299-84cc-9aa98514810e/mcp.tools"
+  ]
+}
+```
+
 ---
 
 ## Connect from Claude

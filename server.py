@@ -3,10 +3,14 @@ import logging
 import os
 import sys
 from typing import Any, Dict
+from urllib.parse import parse_qs, urlencode
 
+import httpx
 from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 from mcp.server.auth.settings import AuthSettings
+from starlette.requests import Request
+from starlette.responses import JSONResponse, RedirectResponse, Response
 
 from services.alerts import check_alerts, get_alerts
 from services.context_builder import build_final_prompt
@@ -64,6 +68,13 @@ OAUTH_ISSUER_URLS = [
     issuer for issuer in os.getenv("OAUTH_ISSUER_URLS", "").replace(",", " ").split() if issuer
 ]
 MCP_RESOURCE_SERVER_URL = os.getenv("MCP_RESOURCE_SERVER_URL", "").strip()
+OAUTH_BROKER_ENABLED = (
+    os.getenv("OAUTH_BROKER_ENABLED", "false").lower() in ("1", "true", "yes")
+)
+OAUTH_BROKER_ISSUER_URL = os.getenv("OAUTH_BROKER_ISSUER_URL", "").strip()
+OAUTH_BROKER_CLIENT_ID = os.getenv("OAUTH_BROKER_CLIENT_ID", "").strip()
+OAUTH_BROKER_CLIENT_SECRET = os.getenv("OAUTH_BROKER_CLIENT_SECRET", "").strip()
+OAUTH_BROKER_SCOPE = os.getenv("OAUTH_BROKER_SCOPE", "").strip()
 ALLOW_UNAUTHENTICATED_HTTP = (
     os.getenv("ALLOW_UNAUTHENTICATED_HTTP", "false").lower() in ("1", "true", "yes")
 )
@@ -97,6 +108,36 @@ def _resolve_supported_scopes() -> list[str]:
 
 
 OAUTH_METADATA_SCOPES = _resolve_supported_scopes()
+
+
+def _public_origin(url: str) -> str:
+    if not url:
+        return ""
+    parts = url.split("/")
+    if len(parts) >= 3:
+        return f"{parts[0]}//{parts[2]}"
+    return url.rstrip("/")
+
+
+def _broker_issuer_url() -> str:
+    return (OAUTH_BROKER_ISSUER_URL or _public_origin(MCP_RESOURCE_SERVER_URL)).rstrip("/")
+
+
+def _entra_oauth_base_url() -> str:
+    issuer = OAUTH_ISSUER_URL.rstrip("/")
+    if issuer.endswith("/v2.0"):
+        return issuer[: -len("/v2.0")]
+    return issuer
+
+
+def _broker_scope() -> str:
+    if OAUTH_BROKER_SCOPE:
+        return OAUTH_BROKER_SCOPE
+    if OAUTH_METADATA_SCOPES:
+        return OAUTH_METADATA_SCOPES[-1]
+    if OAUTH_REQUIRED_SCOPES:
+        return OAUTH_REQUIRED_SCOPES[0]
+    return "mcp.tools"
 
 
 def _build_auth():
@@ -133,7 +174,7 @@ def _build_auth():
             jwks_url=(OAUTH_JWKS_URL or None),
         )
         auth_settings = AuthSettings(
-            issuer_url=OAUTH_ISSUER_URL,
+            issuer_url=(_broker_issuer_url() if OAUTH_BROKER_ENABLED else OAUTH_ISSUER_URL),
             resource_server_url=MCP_RESOURCE_SERVER_URL,
             required_scopes=OAUTH_METADATA_SCOPES,
         )
@@ -155,6 +196,139 @@ mcp = FastMCP(
     log_level=LOG_LEVEL,
     stateless_http=True,
 )
+
+
+if OAUTH_BROKER_ENABLED:
+    @mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET", "OPTIONS"])
+    async def oauth_authorization_server_metadata(request: Request) -> Response:
+        issuer = _broker_issuer_url()
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "GET, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+                },
+            )
+        return JSONResponse(
+            {
+                "issuer": issuer,
+                "authorization_endpoint": f"{issuer}/authorize",
+                "token_endpoint": f"{issuer}/token",
+                "registration_endpoint": f"{issuer}/register",
+                "scopes_supported": OAUTH_METADATA_SCOPES or [_broker_scope()],
+                "response_types_supported": ["code"],
+                "grant_types_supported": ["authorization_code", "refresh_token"],
+                "token_endpoint_auth_methods_supported": [
+                    "client_secret_post",
+                    "client_secret_basic",
+                    "none",
+                ],
+                "code_challenge_methods_supported": ["S256", "plain"],
+            },
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
+
+    @mcp.custom_route("/register", methods=["POST", "OPTIONS"])
+    async def oauth_register(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+                },
+            )
+
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = {}
+
+        client_id = OAUTH_BROKER_CLIENT_ID or payload.get("client_id")
+        if not client_id:
+            return JSONResponse(
+                {"error": "invalid_client_metadata", "error_description": "OAUTH_BROKER_CLIENT_ID is required for dynamic registration."},
+                status_code=400,
+            )
+
+        response_payload = {
+            "client_id": client_id,
+            "client_id_issued_at": 0,
+            "redirect_uris": payload.get("redirect_uris", []),
+            "grant_types": payload.get("grant_types", ["authorization_code", "refresh_token"]),
+            "response_types": payload.get("response_types", ["code"]),
+            "scope": payload.get("scope") or _broker_scope(),
+            "token_endpoint_auth_method": payload.get(
+                "token_endpoint_auth_method",
+                "client_secret_post" if OAUTH_BROKER_CLIENT_SECRET else "none",
+            ),
+        }
+        if OAUTH_BROKER_CLIENT_SECRET:
+            response_payload["client_secret"] = OAUTH_BROKER_CLIENT_SECRET
+            response_payload["client_secret_expires_at"] = 0
+
+        return JSONResponse(response_payload, status_code=201, headers={"Access-Control-Allow-Origin": "*"})
+
+    @mcp.custom_route("/authorize", methods=["GET"])
+    async def oauth_authorize(request: Request) -> Response:
+        params = dict(request.query_params)
+        client_id = OAUTH_BROKER_CLIENT_ID or params.get("client_id")
+        if not client_id:
+            return JSONResponse(
+                {"error": "invalid_request", "error_description": "Missing client_id."},
+                status_code=400,
+            )
+
+        forwarded = {
+            key: value
+            for key, value in params.items()
+            if key not in {"resource", "scope", "client_id"}
+        }
+        forwarded["client_id"] = client_id
+        forwarded["scope"] = _broker_scope()
+        forwarded.setdefault("response_type", "code")
+        forwarded.setdefault("response_mode", "query")
+
+        authorize_url = f"{_entra_oauth_base_url()}/oauth2/v2.0/authorize?{urlencode(forwarded)}"
+        return RedirectResponse(authorize_url, status_code=302)
+
+    @mcp.custom_route("/token", methods=["POST", "OPTIONS"])
+    async def oauth_token(request: Request) -> Response:
+        if request.method == "OPTIONS":
+            return Response(
+                status_code=204,
+                headers={
+                    "Access-Control-Allow-Origin": "*",
+                    "Access-Control-Allow-Methods": "POST, OPTIONS",
+                    "Access-Control-Allow-Headers": "Content-Type, Authorization, MCP-Protocol-Version",
+                },
+            )
+
+        raw_body = (await request.body()).decode()
+        parsed = parse_qs(raw_body, keep_blank_values=True)
+        form = {key: values[-1] for key, values in parsed.items() if values}
+        form.pop("resource", None)
+        form.pop("scope", None)
+        form["client_id"] = OAUTH_BROKER_CLIENT_ID or form.get("client_id", "")
+        if OAUTH_BROKER_CLIENT_SECRET and not form.get("client_secret"):
+            form["client_secret"] = OAUTH_BROKER_CLIENT_SECRET
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.post(
+                f"{_entra_oauth_base_url()}/oauth2/v2.0/token",
+                data=form,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+        return Response(
+            content=response.content,
+            status_code=response.status_code,
+            media_type=response.headers.get("content-type", "application/json"),
+            headers={"Access-Control-Allow-Origin": "*"},
+        )
 
 
 def _invalidate_portfolio_cache() -> None:

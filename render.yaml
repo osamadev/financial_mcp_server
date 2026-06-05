@@ -52,3 +52,13 @@ services:
         sync: false
       - key: MCP_RESOURCE_SERVER_URL
         sync: false
+      - key: OAUTH_BROKER_ENABLED
+        value: false
+      - key: OAUTH_BROKER_ISSUER_URL
+        sync: false
+      - key: OAUTH_BROKER_CLIENT_ID
+        sync: false
+      - key: OAUTH_BROKER_CLIENT_SECRET
+        sync: false
+      - key: OAUTH_BROKER_SCOPE
+        sync: false

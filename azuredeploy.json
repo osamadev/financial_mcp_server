@@ -117,6 +117,32 @@
       "type": "string",
       "defaultValue": "",
       "metadata": { "description": "Public MCP server URL used as OAuth resource server metadata URL." }
+    },
+    "oauthBrokerEnabled": {
+      "type": "string",
+      "defaultValue": "false",
+      "allowedValues": ["true", "false"],
+      "metadata": { "description": "Enable built-in OAuth broker for Claude + Entra resource/scope translation." }
+    },
+    "oauthBrokerIssuerUrl": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional broker issuer origin, e.g. https://<host>. Defaults to MCP resource origin." }
+    },
+    "oauthBrokerClientId": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional Entra client ID override for broker authorize/token requests." }
+    },
+    "oauthBrokerClientSecret": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": { "description": "Optional Entra client secret override for broker token requests." }
+    },
+    "oauthBrokerScope": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": { "description": "Optional full Entra API scope requested by broker, e.g. api://<api-app-id>/mcp.tools." }
     }
   },
   "variables": {
@@ -172,7 +198,7 @@
             "stickySessions": { "affinity": "sticky" },
             "traffic": [ { "latestRevision": true, "weight": 100 } ]
           },
-          "secrets": "[concat(if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'mcp-access-token', 'value', parameters('mcpAccessToken')))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'serpapi-key', 'value', parameters('serpApiKey')))), if(empty(parameters('alphaVantageApiKey')), createArray(), createArray(createObject('name', 'alpha-vantage-api-key', 'value', parameters('alphaVantageApiKey')))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'telegram-bot-token', 'value', parameters('telegramBotToken')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'openai-api-key', 'value', parameters('openAiApiKey')))))]"
+          "secrets": "[concat(if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'mcp-access-token', 'value', parameters('mcpAccessToken')))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'serpapi-key', 'value', parameters('serpApiKey')))), if(empty(parameters('alphaVantageApiKey')), createArray(), createArray(createObject('name', 'alpha-vantage-api-key', 'value', parameters('alphaVantageApiKey')))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'telegram-bot-token', 'value', parameters('telegramBotToken')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'openai-api-key', 'value', parameters('openAiApiKey')))), if(empty(parameters('oauthBrokerClientSecret')), createArray(), createArray(createObject('name', 'oauth-broker-client-secret', 'value', parameters('oauthBrokerClientSecret')))))]"
         },
         "template": {
           "containers": [
@@ -180,7 +206,7 @@
               "name": "financial-mcp-server",
               "image": "[parameters('image')]",
               "resources": { "cpu": "[json('0.5')]", "memory": "1.0Gi" },
-              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'MCP_AUTH_MODE', 'value', parameters('mcpAuthMode')), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel')), createObject('name', 'SUMMARIZER_PROVIDER', 'value', parameters('summarizerProvider')), createObject('name', 'OPENAI_MODEL', 'value', parameters('openAiModel')), createObject('name', 'OAUTH_REQUIRED_SCOPES', 'value', parameters('oauthRequiredScopes'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('alphaVantageApiKey')), createArray(), createArray(createObject('name', 'ALPHA_VANTAGE_API_KEY', 'secretRef', 'alpha-vantage-api-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'OPENAI_API_KEY', 'secretRef', 'openai-api-key'))), if(empty(parameters('openAiBaseUrl')), createArray(), createArray(createObject('name', 'OPENAI_BASE_URL', 'value', parameters('openAiBaseUrl')))), if(empty(parameters('oauthIssuerUrl')), createArray(), createArray(createObject('name', 'OAUTH_ISSUER_URL', 'value', parameters('oauthIssuerUrl')))), if(empty(parameters('oauthIssuerUrls')), createArray(), createArray(createObject('name', 'OAUTH_ISSUER_URLS', 'value', parameters('oauthIssuerUrls')))), if(empty(parameters('oauthJwksUrl')), createArray(), createArray(createObject('name', 'OAUTH_JWKS_URL', 'value', parameters('oauthJwksUrl')))), if(empty(parameters('oauthAudience')), createArray(), createArray(createObject('name', 'OAUTH_AUDIENCE', 'value', parameters('oauthAudience')))), if(empty(parameters('oauthScopesSupported')), createArray(), createArray(createObject('name', 'OAUTH_SCOPES_SUPPORTED', 'value', parameters('oauthScopesSupported')))), if(empty(parameters('mcpResourceServerUrl')), createArray(), createArray(createObject('name', 'MCP_RESOURCE_SERVER_URL', 'value', parameters('mcpResourceServerUrl')))))]"
+              "env": "[concat(createArray(createObject('name', 'MCP_TRANSPORT', 'value', 'streamable-http'), createObject('name', 'MCP_AUTH_MODE', 'value', parameters('mcpAuthMode')), createObject('name', 'HOST', 'value', '0.0.0.0'), createObject('name', 'PORT', 'value', '8000'), createObject('name', 'LOG_LEVEL', 'value', parameters('logLevel')), createObject('name', 'SUMMARIZER_PROVIDER', 'value', parameters('summarizerProvider')), createObject('name', 'OPENAI_MODEL', 'value', parameters('openAiModel')), createObject('name', 'OAUTH_REQUIRED_SCOPES', 'value', parameters('oauthRequiredScopes')), createObject('name', 'OAUTH_BROKER_ENABLED', 'value', parameters('oauthBrokerEnabled'))), if(empty(parameters('mcpAccessToken')), createArray(), createArray(createObject('name', 'MCP_ACCESS_TOKEN', 'secretRef', 'mcp-access-token'))), if(empty(parameters('serpApiKey')), createArray(), createArray(createObject('name', 'SERPAPI_API_KEY', 'secretRef', 'serpapi-key'))), if(empty(parameters('alphaVantageApiKey')), createArray(), createArray(createObject('name', 'ALPHA_VANTAGE_API_KEY', 'secretRef', 'alpha-vantage-api-key'))), if(empty(parameters('telegramBotToken')), createArray(), createArray(createObject('name', 'TELEGRAM_BOT_TOKEN', 'secretRef', 'telegram-bot-token'))), if(empty(parameters('telegramUserId')), createArray(), createArray(createObject('name', 'TELEGRAM_USER_ID', 'value', parameters('telegramUserId')))), if(empty(parameters('ollamaHost')), createArray(), createArray(createObject('name', 'OLLAMA_HOST', 'value', parameters('ollamaHost')))), if(empty(parameters('openAiApiKey')), createArray(), createArray(createObject('name', 'OPENAI_API_KEY', 'secretRef', 'openai-api-key'))), if(empty(parameters('openAiBaseUrl')), createArray(), createArray(createObject('name', 'OPENAI_BASE_URL', 'value', parameters('openAiBaseUrl')))), if(empty(parameters('oauthIssuerUrl')), createArray(), createArray(createObject('name', 'OAUTH_ISSUER_URL', 'value', parameters('oauthIssuerUrl')))), if(empty(parameters('oauthIssuerUrls')), createArray(), createArray(createObject('name', 'OAUTH_ISSUER_URLS', 'value', parameters('oauthIssuerUrls')))), if(empty(parameters('oauthJwksUrl')), createArray(), createArray(createObject('name', 'OAUTH_JWKS_URL', 'value', parameters('oauthJwksUrl')))), if(empty(parameters('oauthAudience')), createArray(), createArray(createObject('name', 'OAUTH_AUDIENCE', 'value', parameters('oauthAudience')))), if(empty(parameters('oauthScopesSupported')), createArray(), createArray(createObject('name', 'OAUTH_SCOPES_SUPPORTED', 'value', parameters('oauthScopesSupported')))), if(empty(parameters('mcpResourceServerUrl')), createArray(), createArray(createObject('name', 'MCP_RESOURCE_SERVER_URL', 'value', parameters('mcpResourceServerUrl')))), if(empty(parameters('oauthBrokerIssuerUrl')), createArray(), createArray(createObject('name', 'OAUTH_BROKER_ISSUER_URL', 'value', parameters('oauthBrokerIssuerUrl')))), if(empty(parameters('oauthBrokerClientId')), createArray(), createArray(createObject('name', 'OAUTH_BROKER_CLIENT_ID', 'value', parameters('oauthBrokerClientId')))), if(empty(parameters('oauthBrokerClientSecret')), createArray(), createArray(createObject('name', 'OAUTH_BROKER_CLIENT_SECRET', 'secretRef', 'oauth-broker-client-secret'))), if(empty(parameters('oauthBrokerScope')), createArray(), createArray(createObject('name', 'OAUTH_BROKER_SCOPE', 'value', parameters('oauthBrokerScope')))))]"
             }
           ],
           "scale": { "minReplicas": 1, "maxReplicas": 1 }
