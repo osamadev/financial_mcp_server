@@ -90,6 +90,23 @@ class OidcJwtVerifier(TokenVerifier):
             return token_scope == short_required
         return token_scope.endswith(f"/{required_scope}")
 
+    def _expand_scopes_for_middleware(self, scopes: list[str]) -> list[str]:
+        expanded = list(scopes)
+        for scope in scopes:
+            if "://" in scope:
+                continue
+            for audience in self.audiences:
+                if not audience.startswith("api://"):
+                    continue
+                full_scope = f"{audience.rstrip('/')}/{scope}"
+                if full_scope not in expanded:
+                    expanded.append(full_scope)
+        for required_scope in self.required_scopes:
+            if any(self._scope_matches(required_scope, scope) for scope in expanded):
+                if required_scope not in expanded:
+                    expanded.append(required_scope)
+        return expanded
+
     async def _fetch_openid_configuration(self) -> dict[str, Any]:
         url = f"{self.issuer_url}/.well-known/openid-configuration"
         async with httpx.AsyncClient(timeout=self.http_timeout_seconds) as client:
@@ -207,7 +224,7 @@ class OidcJwtVerifier(TokenVerifier):
             return AccessToken(
                 token=token,
                 client_id=str(client_id),
-                scopes=scopes,
+                scopes=self._expand_scopes_for_middleware(scopes),
                 expires_at=payload.get("exp"),
                 resource=self.audiences[0],
             )

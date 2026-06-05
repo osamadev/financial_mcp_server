@@ -51,6 +51,8 @@ class AuthSecurityTests(unittest.TestCase):
 
         access_token = asyncio.run(verifier.verify_token(token))
         self.assertIsNotNone(access_token)
+        self.assertIn("mcp.tools", access_token.scopes)
+        self.assertIn("api://financial-mcp/mcp.tools", access_token.scopes)
         self.assertEqual(access_token.client_id, "user-123")
         self.assertIn("mcp.tools", access_token.scopes)
 
