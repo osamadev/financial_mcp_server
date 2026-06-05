@@ -135,10 +135,14 @@ MCP_AUTH_MODE=static
 MCP_ACCESS_TOKEN=replace_with_strong_secret_for_http
 # Used when MCP_AUTH_MODE=oauth
 OAUTH_ISSUER_URL=
+# Optional additional issuers (space/comma-separated), e.g. sts.windows.net tenant issuer
+# OAUTH_ISSUER_URLS=
 # Optional JWKS override (otherwise discovered from issuer metadata)
 # OAUTH_JWKS_URL=
 OAUTH_AUDIENCE=
 OAUTH_REQUIRED_SCOPES=mcp.tools
+# Optional metadata scopes advertised to clients (use full Entra scope if needed):
+# OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools
 MCP_RESOURCE_SERVER_URL=
 TELEGRAM_BOT_TOKEN=your_bot_token
 TELEGRAM_USER_ID=your_chat_id
@@ -167,6 +171,8 @@ OPENAI_MODEL=gpt-4o-mini
   metadata (recommended for Postman and simple Claude bearer setup).
 - `oauth`: validates JWT access tokens from an external OIDC provider using
   `OAUTH_ISSUER_URL` + `OAUTH_AUDIENCE` (+ optional `OAUTH_JWKS_URL`).
+  Optional `OAUTH_ISSUER_URLS` allows additional trusted issuers (for example
+  `sts.windows.net` when Entra returns v1 issuer claims).
   Client ID and client secret belong in the **connector / IdP app**, not on this server.
 - `none`: only for local tests with `ALLOW_UNAUTHENTICATED_HTTP=true`.
 

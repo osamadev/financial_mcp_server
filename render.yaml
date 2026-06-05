@@ -40,11 +40,15 @@ services:
         sync: false
       - key: OAUTH_ISSUER_URL
         sync: false
+      - key: OAUTH_ISSUER_URLS
+        sync: false
       - key: OAUTH_JWKS_URL
         sync: false
       - key: OAUTH_AUDIENCE
         sync: false
       - key: OAUTH_REQUIRED_SCOPES
         value: mcp.tools
+      - key: OAUTH_SCOPES_SUPPORTED
+        sync: false
       - key: MCP_RESOURCE_SERVER_URL
         sync: false

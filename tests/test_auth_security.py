@@ -124,6 +124,76 @@ class AuthSecurityTests(unittest.TestCase):
         access_token = asyncio.run(verifier.verify_token(token))
         self.assertIsNotNone(access_token)
 
+    def test_oidc_verifier_accepts_short_scope_when_full_scope_required(self):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key()
+        jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
+        jwk["kid"] = "test-key"
+
+        token = jwt.encode(
+            {
+                "iss": "https://issuer.example.com",
+                "aud": "api://financial-mcp",
+                "exp": int(time.time()) + 300,
+                "iat": int(time.time()) - 1,
+                "scp": "mcp.tools",
+                "sub": "user-789",
+            },
+            private_key,
+            algorithm="RS256",
+            headers={"kid": "test-key"},
+        )
+
+        verifier = OidcJwtVerifier(
+            issuer_url="https://issuer.example.com",
+            audience="api://financial-mcp",
+            required_scopes=["api://financial-mcp/mcp.tools"],
+            jwks_url="https://issuer.example.com/jwks",
+        )
+
+        async def fake_fetch_jwks():
+            return {"keys": [jwk]}
+
+        verifier._fetch_jwks = fake_fetch_jwks  # type: ignore[method-assign]
+
+        access_token = asyncio.run(verifier.verify_token(token))
+        self.assertIsNotNone(access_token)
+
+    def test_oidc_verifier_accepts_sts_windows_issuer_alias(self):
+        private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+        public_key = private_key.public_key()
+        jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(public_key))
+        jwk["kid"] = "test-key"
+
+        token = jwt.encode(
+            {
+                "iss": "https://sts.windows.net/tenant-123/",
+                "aud": "api://financial-mcp",
+                "exp": int(time.time()) + 300,
+                "iat": int(time.time()) - 1,
+                "scope": "mcp.tools",
+                "sub": "user-999",
+            },
+            private_key,
+            algorithm="RS256",
+            headers={"kid": "test-key"},
+        )
+
+        verifier = OidcJwtVerifier(
+            issuer_url="https://login.microsoftonline.com/tenant-123/v2.0",
+            audience="api://financial-mcp",
+            required_scopes=["mcp.tools"],
+            jwks_url="https://issuer.example.com/jwks",
+        )
+
+        async def fake_fetch_jwks():
+            return {"keys": [jwk]}
+
+        verifier._fetch_jwks = fake_fetch_jwks  # type: ignore[method-assign]
+
+        access_token = asyncio.run(verifier.verify_token(token))
+        self.assertIsNotNone(access_token)
+
 
 if __name__ == "__main__":
     unittest.main()

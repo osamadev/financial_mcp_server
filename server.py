@@ -49,8 +49,19 @@ MCP_ACCESS_TOKEN = os.getenv("MCP_ACCESS_TOKEN", "").strip()
 OAUTH_ISSUER_URL = os.getenv("OAUTH_ISSUER_URL", "").strip()
 OAUTH_JWKS_URL = os.getenv("OAUTH_JWKS_URL", "").strip()
 OAUTH_AUDIENCE = os.getenv("OAUTH_AUDIENCE", "").strip()
-OAUTH_REQUIRED_SCOPES = [
-    scope for scope in os.getenv("OAUTH_REQUIRED_SCOPES", "mcp.tools").split() if scope
+OAUTH_AUDIENCES = [aud.strip() for aud in OAUTH_AUDIENCE.split(",") if aud.strip()]
+
+
+def _split_env_scopes(raw_value: str) -> list[str]:
+    return [scope for scope in raw_value.replace(",", " ").split() if scope]
+
+
+OAUTH_REQUIRED_SCOPES = _split_env_scopes(
+    os.getenv("OAUTH_REQUIRED_SCOPES", "mcp.tools")
+)
+OAUTH_SCOPES_SUPPORTED = _split_env_scopes(os.getenv("OAUTH_SCOPES_SUPPORTED", ""))
+OAUTH_ISSUER_URLS = [
+    issuer for issuer in os.getenv("OAUTH_ISSUER_URLS", "").replace(",", " ").split() if issuer
 ]
 MCP_RESOURCE_SERVER_URL = os.getenv("MCP_RESOURCE_SERVER_URL", "").strip()
 ALLOW_UNAUTHENTICATED_HTTP = (
@@ -67,6 +78,27 @@ def resolve_transport() -> str:
     return "stdio"
 
 
+def _resolve_supported_scopes() -> list[str]:
+    # scopes_supported in protected-resource metadata should reflect what the IdP expects
+    # during authorize/token requests. It can differ from strict token validation scopes.
+    if OAUTH_SCOPES_SUPPORTED:
+        return OAUTH_SCOPES_SUPPORTED
+
+    supported = list(OAUTH_REQUIRED_SCOPES)
+    api_audiences = [aud for aud in OAUTH_AUDIENCES if aud.startswith("api://")]
+    for required_scope in OAUTH_REQUIRED_SCOPES:
+        if "://" in required_scope:
+            continue
+        for audience in api_audiences:
+            full_scope = f"{audience.rstrip('/')}/{required_scope}"
+            if full_scope not in supported:
+                supported.append(full_scope)
+    return supported
+
+
+OAUTH_METADATA_SCOPES = _resolve_supported_scopes()
+
+
 def _build_auth():
     if MCP_AUTH_MODE == "none":
         return None, None
@@ -81,7 +113,7 @@ def _build_auth():
         auth_settings = AuthSettings(
             issuer_url=(static_resource_url or f"http://{HOST}:{PORT}"),
             resource_server_url=static_resource_url,
-            required_scopes=OAUTH_REQUIRED_SCOPES or None,
+            required_scopes=OAUTH_METADATA_SCOPES or None,
         )
         return StaticTokenVerifier(MCP_ACCESS_TOKEN), auth_settings
 
@@ -95,6 +127,7 @@ def _build_auth():
 
         verifier = OidcJwtVerifier(
             issuer_url=OAUTH_ISSUER_URL,
+            issuer_urls=OAUTH_ISSUER_URLS,
             audience=OAUTH_AUDIENCE,
             required_scopes=OAUTH_REQUIRED_SCOPES,
             jwks_url=(OAUTH_JWKS_URL or None),
@@ -102,7 +135,7 @@ def _build_auth():
         auth_settings = AuthSettings(
             issuer_url=OAUTH_ISSUER_URL,
             resource_server_url=MCP_RESOURCE_SERVER_URL,
-            required_scopes=OAUTH_REQUIRED_SCOPES,
+            required_scopes=OAUTH_METADATA_SCOPES,
         )
         return verifier, auth_settings
 

@@ -1,6 +1,7 @@
 import hmac
 import json
 import logging
+import re
 import time
 from typing import Any, Optional
 
@@ -37,12 +38,22 @@ class OidcJwtVerifier(TokenVerifier):
         self,
         issuer_url: str,
         audience: str,
+        issuer_urls: list[str] | None = None,
         required_scopes: list[str] | None = None,
         jwks_url: str | None = None,
         http_timeout_seconds: int = 10,
         jwks_cache_ttl_seconds: int = 300,
     ) -> None:
-        self.issuer_url = issuer_url.rstrip("/")
+        self.issuer_url = self._normalize_issuer(issuer_url)
+        configured_issuers = [self.issuer_url]
+        for issuer in issuer_urls or []:
+            normalized = self._normalize_issuer(issuer)
+            if normalized not in configured_issuers:
+                configured_issuers.append(normalized)
+        for alias in self._derive_issuer_aliases(self.issuer_url):
+            if alias not in configured_issuers:
+                configured_issuers.append(alias)
+        self.issuer_urls = configured_issuers
         self.audiences = [a.strip() for a in audience.split(",") if a.strip()]
         if not self.audiences:
             raise ValueError("At least one OAuth audience is required.")
@@ -53,6 +64,31 @@ class OidcJwtVerifier(TokenVerifier):
 
         self._jwks_cache: dict[str, Any] | None = None
         self._jwks_expires_at = 0.0
+
+    @staticmethod
+    def _normalize_issuer(issuer: str) -> str:
+        return issuer.strip().rstrip("/")
+
+    @staticmethod
+    def _derive_issuer_aliases(issuer: str) -> list[str]:
+        # Entra tokens can use either login.microsoftonline.com/.../v2.0 or
+        # sts.windows.net/<tenant-id>/ for equivalent tenants.
+        match = re.match(
+            r"^https://login\.microsoftonline\.com/([^/]+)/v2\.0$", issuer.strip().rstrip("/"), re.IGNORECASE
+        )
+        if not match:
+            return []
+        tenant_id = match.group(1)
+        return [f"https://sts.windows.net/{tenant_id}"]
+
+    @staticmethod
+    def _scope_matches(required_scope: str, token_scope: str) -> bool:
+        if required_scope == token_scope:
+            return True
+        if "://" in required_scope:
+            short_required = required_scope.rsplit("/", 1)[-1]
+            return token_scope == short_required
+        return token_scope.endswith(f"/{required_scope}")
 
     async def _fetch_openid_configuration(self) -> dict[str, Any]:
         url = f"{self.issuer_url}/.well-known/openid-configuration"
@@ -139,14 +175,27 @@ class OidcJwtVerifier(TokenVerifier):
                 public_key,
                 algorithms=[alg],
                 audience=self.audiences if len(self.audiences) > 1 else self.audiences[0],
-                issuer=self.issuer_url,
-                options={"verify_signature": True, "verify_exp": True},
+                options={"verify_signature": True, "verify_exp": True, "verify_iss": False},
             )
 
-            scopes = self._extract_scopes(payload)
-            if self.required_scopes and not set(self.required_scopes).issubset(set(scopes)):
-                logger.warning("Token missing required scopes.")
+            token_issuer = self._normalize_issuer(str(payload.get("iss", "")))
+            if token_issuer not in self.issuer_urls:
+                logger.warning(
+                    "Token issuer is not allowed. token_iss=%s allowed=%s",
+                    token_issuer,
+                    self.issuer_urls,
+                )
                 return None
+
+            scopes = self._extract_scopes(payload)
+            for required_scope in self.required_scopes:
+                if not any(self._scope_matches(required_scope, scope) for scope in scopes):
+                    logger.warning(
+                        "Token missing required scope. required=%s token_scopes=%s",
+                        required_scope,
+                        scopes,
+                    )
+                    return None
 
             client_id = (
                 payload.get("azp")

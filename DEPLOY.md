@@ -41,7 +41,7 @@ Host your own copy from this repository (fork first if you need a custom `azured
 1. Click **Deploy to Azure** (or use the [portal link](https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json)).
 2. Pick a resource group and region.
 3. **Static auth (simplest):** leave `mcpAuthMode` as `static`, set `mcpAccessToken`.
-4. **OAuth auth:** set `mcpAuthMode` to `oauth`, leave `mcpAccessToken` empty, fill `oauthIssuerUrl`, `oauthAudience`, `oauthRequiredScopes`, and `mcpResourceServerUrl` (use `https://<fqdn>/mcp` after first deploy, or your known hostname).
+4. **OAuth auth:** set `mcpAuthMode` to `oauth`, leave `mcpAccessToken` empty, fill `oauthIssuerUrl`, `oauthAudience`, `oauthRequiredScopes`, and `mcpResourceServerUrl` (use `https://<fqdn>/mcp` after first deploy, or your known hostname). Optional: set `oauthScopesSupported` to the full Entra scope (`api://<api-app-id>/mcp.tools`) to steer strict clients.
 5. Optional: `serpApiKey`, `alphaVantageApiKey`, Telegram vars, summarizer settings.
 6. Deploy; copy the **`mcpEndpoint`** output for Claude.
 
@@ -72,7 +72,7 @@ See [`cloudflare-worker/README.md`](cloudflare-worker/README.md).
 3. Open the service → **Edit & deploy new revision** → **Variables & secrets**:
    - `MCP_ACCESS_TOKEN` (static mode)
    - Optional: `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars
-   - OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, `MCP_RESOURCE_SERVER_URL=https://<url>/mcp`
+   - OAuth: `MCP_AUTH_MODE=oauth`, `OAUTH_ISSUER_URL`, `OAUTH_AUDIENCE`, `OAUTH_REQUIRED_SCOPES=mcp.tools`, optional `OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools`, and `MCP_RESOURCE_SERVER_URL=https://<url>/mcp`
 4. MCP URL: `https://<service-url>/mcp`
 
 CLI alternative: [`gcp/deploy-cloudrun.sh`](gcp/deploy-cloudrun.sh) — details in [`gcp/README.md`](gcp/README.md).
@@ -143,6 +143,9 @@ MCP_AUTH_MODE=oauth
 OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0
 OAUTH_AUDIENCE=api://<api-app-client-id>,<api-app-client-id>
 OAUTH_REQUIRED_SCOPES=mcp.tools
+OAUTH_SCOPES_SUPPORTED=api://<api-app-client-id>/mcp.tools
+# Optional fallback for Entra v1 issuer tokens:
+# OAUTH_ISSUER_URLS=https://sts.windows.net/<tenant-id>/
 MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
 ```
 
@@ -150,12 +153,35 @@ MCP_RESOURCE_SERVER_URL=https://<your-public-host>/mcp
 |----------|---------------------|--------|
 | `MCP_AUTH_MODE` | `mcpAuthMode` | `oauth` |
 | `OAUTH_ISSUER_URL` | `oauthIssuerUrl` | Tenant v2.0 issuer |
+| `OAUTH_ISSUER_URLS` | `oauthIssuerUrls` | Optional additional issuer URLs (space-separated), e.g. `https://sts.windows.net/<tenant-id>/` |
 | `OAUTH_AUDIENCE` | `oauthAudience` | Match token `aud` (URI and/or API app GUID, comma-separated) |
-| `OAUTH_REQUIRED_SCOPES` | `oauthRequiredScopes` | Must appear in JWT `scp` or `scope` — decode a test token at [jwt.ms](https://jwt.ms) and align |
+| `OAUTH_REQUIRED_SCOPES` | `oauthRequiredScopes` | Required scopes for JWT validation (often short `mcp.tools` with Entra) |
+| `OAUTH_SCOPES_SUPPORTED` | `oauthScopesSupported` | Optional scopes advertised in MCP metadata (set full Entra scope to avoid AADSTS9010010 in strict clients) |
 | `MCP_RESOURCE_SERVER_URL` | `mcpResourceServerUrl` | Public URL ending in `/mcp` |
 | `MCP_ACCESS_TOKEN` | `mcpAccessToken` | Leave **empty** in OAuth mode |
 
-If Entra puts `api://financial-mcp/mcp.tools` in `scp`, set `OAUTH_REQUIRED_SCOPES` to that full string (not only `mcp.tools`).
+If Entra puts short scopes in `scp` (for example `mcp.tools`) but your connector needs full scope hints, keep:
+
+- `OAUTH_REQUIRED_SCOPES=mcp.tools` for token validation, and
+- `OAUTH_SCOPES_SUPPORTED=api://<api-app-id>/mcp.tools` for protected-resource metadata.
+
+### AADSTS9010010 (resource/scope mismatch)
+
+If Entra sign-in logs show `AADSTS9010010` (`resource parameter doesn't match requested scopes`), your OAuth client is mixing:
+
+- MCP resource URL (`https://<host>/mcp`) and
+- Entra API scope (`api://<api-app-id>/mcp.tools`)
+
+Use one consistent Entra target:
+
+| Request style | Valid example |
+|---------------|---------------|
+| Scope-only (recommended) | `scope=api://<api-app-id>/mcp.tools` and omit `resource` |
+| Resource + scope | `resource=api://<api-app-id>` + `scope=api://<api-app-id>/mcp.tools` |
+
+Wrong combination (triggers 9010010): `resource=https://<mcp-host>/mcp` with `scope=api://<api-app-id>/mcp.tools`.
+
+Reference: [Microsoft sign-in error lookup](https://login.microsoftonline.com/error?code=9010010).
 
 ### 4. Configure Claude custom connector
 
@@ -183,9 +209,14 @@ Expect **HTTP 200** with a valid token; **401** if issuer, audience, or scopes d
 | Symptom | Check |
 |---------|--------|
 | Claude “Couldn't register with sign-in service” | Backend `MCP_AUTH_MODE=oauth`, real `OAUTH_ISSUER_URL`, client app redirect URIs |
+| Entra `AADSTS9010010` | OAuth request uses mismatched `resource` and `scope`; use full API scope and avoid MCP URL as Entra `resource` |
 | 401 after login | Token `aud` vs `OAUTH_AUDIENCE`; `scp` vs `OAUTH_REQUIRED_SCOPES` |
 | Works on Azure URL but not via Worker | `WORKER_AUTH_MODE=passthrough` and backend `MCP_AUTH_MODE=oauth` |
 | Want simple shared secret instead | `MCP_AUTH_MODE=static`, omit `MCP_RESOURCE_SERVER_URL`, bearer token in Claude |
+
+### When to use an OAuth broker
+
+If Claude always sends `resource=https://<mcp-host>/mcp` and you cannot override that behavior in connector settings, place a small OAuth broker in front of Entra. The broker should expose MCP-compatible metadata and translate authorize/token requests to Entra with consistent API resource/scope values.
 
 ---
 
