@@ -51,8 +51,24 @@ Runs one always-on replica with sticky sessions (small steady cost, not scale-to
 
 1. Click **Deploy to Render**.
 2. Connect the repo; Render applies `render.yaml` (Docker, `streamable-http`).
-3. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`, and `OAUTH_BROKER_*`.
-4. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
+3. Render health checks use `GET /health` (public endpoint) instead of probing `/mcp`.
+4. **Important:** default Render auth is `MCP_AUTH_MODE=static`; `MCP_ACCESS_TOKEN` is required or startup fails.
+5. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`, and `OAUTH_BROKER_*`.
+6. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
+
+Render OAuth example:
+- `MCP_AUTH_MODE=oauth`
+- `OAUTH_ISSUER_URL=https://login.microsoftonline.com/<tenant-id>/v2.0`
+- `OAUTH_AUDIENCE=api://<api-app-id>`
+- `OAUTH_REQUIRED_SCOPES=mcp.tools`
+- `MCP_RESOURCE_SERVER_URL=https://<your-render-service>.onrender.com/mcp`
+
+Render OAuth broker example (Claude + Entra compatibility):
+- `OAUTH_BROKER_ENABLED=true`
+- `OAUTH_BROKER_ISSUER_URL=https://<your-render-service>.onrender.com`
+- `OAUTH_BROKER_SCOPE=api://<api-app-id>/mcp.tools`
+- `OAUTH_BROKER_CLIENT_ID=<oauth-client-id>`
+- `OAUTH_BROKER_CLIENT_SECRET=<oauth-client-secret>`
 
 #### Cloudflare Worker (proxy)
 

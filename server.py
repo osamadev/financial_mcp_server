@@ -198,6 +198,11 @@ mcp = FastMCP(
 )
 
 
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> Response:
+    return JSONResponse({"ok": True, "service": "financial-mcp-server"})
+
+
 if OAUTH_BROKER_ENABLED:
     @mcp.custom_route("/.well-known/oauth-authorization-server", methods=["GET", "OPTIONS"])
     async def oauth_authorization_server_metadata(request: Request) -> Response:

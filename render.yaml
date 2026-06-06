@@ -5,7 +5,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     autoDeploy: false   # recommended for a public "Deploy to Render" button repo
-    healthCheckPath: /mcp
+    healthCheckPath: /health
     envVars:
       - key: MCP_TRANSPORT
         value: streamable-http
@@ -16,9 +16,10 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: ALLOW_UNAUTHENTICATED_HTTP
-        value: false
+        value: "false"
       # Render injects PORT automatically; server.py reads it.
       - key: MCP_ACCESS_TOKEN
+        # Required when MCP_AUTH_MODE=static (default). Leave empty only for oauth/none.
         sync: false
       - key: SERPAPI_API_KEY
         sync: false
@@ -29,7 +30,7 @@ services:
       - key: TELEGRAM_USER_ID
         sync: false
       - key: ENABLE_TELEGRAM_ALERTS
-        value: false
+        value: "false"
       - key: PORTFOLIO_FILE
         sync: false
       - key: OLLAMA_HOST
@@ -59,7 +60,7 @@ services:
       - key: MCP_RESOURCE_SERVER_URL
         sync: false
       - key: OAUTH_BROKER_ENABLED
-        value: false
+        value: "false"
       - key: OAUTH_BROKER_ISSUER_URL
         sync: false
       - key: OAUTH_BROKER_CLIENT_ID

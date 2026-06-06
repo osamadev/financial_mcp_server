@@ -31,7 +31,7 @@ to launch a remote MCP endpoint at `https://<host>/mcp`.
 | Platform | Deploys | Default auth | OAuth setup |
 |----------|---------|--------------|-------------|
 | [Azure Container Apps](https://portal.azure.com/#create/Microsoft.Template/uri=https%3A%2F%2Fraw.githubusercontent.com%2Fosamadev%2Ffinancial_mcp_server%2Fmain%2Fazuredeploy.json) | Python MCP backend (`azuredeploy.json`) | `mcpAuthMode=static` | Set `mcpAuthMode=oauth` + Entra settings in the portal — see [OAuth (Entra ID)](DEPLOY.md#oauth-entra-id) |
-| [Render](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`render.yaml`) | `MCP_AUTH_MODE=static` | Add OAuth env vars in the Render dashboard after deploy |
+| [Render](https://render.com/deploy?repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`render.yaml`) | `MCP_AUTH_MODE=static` | Set `MCP_ACCESS_TOKEN` (required in static mode), then add OAuth env vars in Render dashboard if needed |
 | [Google Cloud Run](https://deploy.cloud.run/?git_repo=https://github.com/osamadev/financial_mcp_server) | Python MCP backend (`Dockerfile` / GHCR) | `MCP_AUTH_MODE=static` | Set OAuth env vars in Cloud Run → **Variables & secrets** — see [`gcp/README.md`](gcp/README.md) |
 | [Cloudflare Worker](https://deploy.workers.cloudflare.com/?url=https://github.com/osamadev/financial_mcp_server/tree/main/cloudflare-worker) | HTTPS proxy only (`cloudflare-worker/`) | `WORKER_AUTH_MODE=static` | Use `WORKER_AUTH_MODE=passthrough` when the backend uses OAuth JWTs |
 
