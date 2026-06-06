@@ -67,6 +67,9 @@ Render OAuth example:
 - `OAUTH_REQUIRED_SCOPES=mcp.tools`
 - `MCP_RESOURCE_SERVER_URL=https://<your-render-service>.onrender.com/mcp`
 
+Note: if `MCP_RESOURCE_SERVER_URL` is omitted on Render, the server will fall back to
+`RENDER_EXTERNAL_URL + /mcp` automatically.
+
 Render OAuth broker example (Claude + Entra compatibility):
 - `OAUTH_BROKER_ENABLED=true`
 - `OAUTH_BROKER_ISSUER_URL=https://<your-render-service>.onrender.com`

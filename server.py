@@ -80,6 +80,30 @@ ALLOW_UNAUTHENTICATED_HTTP = (
 )
 
 
+def _normalize_resource_server_url(raw_url: str) -> str:
+    normalized = raw_url.strip().rstrip("/")
+    if not normalized:
+        return ""
+    if normalized.endswith("/mcp"):
+        return normalized
+    return f"{normalized}/mcp"
+
+
+def _resolve_resource_server_url() -> str:
+    if MCP_RESOURCE_SERVER_URL:
+        return _normalize_resource_server_url(MCP_RESOURCE_SERVER_URL)
+
+    # Render provides the public service URL at runtime.
+    render_external_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
+    if render_external_url:
+        return _normalize_resource_server_url(render_external_url)
+
+    return ""
+
+
+RESOLVED_MCP_RESOURCE_SERVER_URL = _resolve_resource_server_url()
+
+
 def resolve_transport() -> str:
     transport = os.getenv("MCP_TRANSPORT", "stdio").lower()
     if transport in ("http", "streamable-http", "streamable_http"):
@@ -120,7 +144,7 @@ def _public_origin(url: str) -> str:
 
 
 def _broker_issuer_url() -> str:
-    return (OAUTH_BROKER_ISSUER_URL or _public_origin(MCP_RESOURCE_SERVER_URL)).rstrip("/")
+    return (OAUTH_BROKER_ISSUER_URL or _public_origin(RESOLVED_MCP_RESOURCE_SERVER_URL)).rstrip("/")
 
 
 def _entra_oauth_base_url() -> str:
@@ -150,7 +174,7 @@ def _build_auth():
         # FastMCP requires AuthSettings when token_verifier is set. Do not set
         # resource_server_url unless MCP_RESOURCE_SERVER_URL is explicitly provided —
         # that URL drives /.well-known/oauth-protected-resource and makes Claude expect OAuth.
-        static_resource_url = MCP_RESOURCE_SERVER_URL or None
+        static_resource_url = RESOLVED_MCP_RESOURCE_SERVER_URL or None
         auth_settings = AuthSettings(
             issuer_url=(static_resource_url or f"http://{HOST}:{PORT}"),
             resource_server_url=static_resource_url,
@@ -163,8 +187,11 @@ def _build_auth():
             raise RuntimeError("OAUTH_ISSUER_URL is required when MCP_AUTH_MODE=oauth.")
         if not OAUTH_AUDIENCE:
             raise RuntimeError("OAUTH_AUDIENCE is required when MCP_AUTH_MODE=oauth.")
-        if not MCP_RESOURCE_SERVER_URL:
-            raise RuntimeError("MCP_RESOURCE_SERVER_URL is required when MCP_AUTH_MODE=oauth.")
+        if not RESOLVED_MCP_RESOURCE_SERVER_URL:
+            raise RuntimeError(
+                "MCP_RESOURCE_SERVER_URL is required when MCP_AUTH_MODE=oauth "
+                "(or RENDER_EXTERNAL_URL must be available on Render)."
+            )
 
         verifier = OidcJwtVerifier(
             issuer_url=OAUTH_ISSUER_URL,
@@ -175,7 +202,7 @@ def _build_auth():
         )
         auth_settings = AuthSettings(
             issuer_url=(_broker_issuer_url() if OAUTH_BROKER_ENABLED else OAUTH_ISSUER_URL),
-            resource_server_url=MCP_RESOURCE_SERVER_URL,
+            resource_server_url=RESOLVED_MCP_RESOURCE_SERVER_URL,
             required_scopes=OAUTH_METADATA_SCOPES,
         )
         return verifier, auth_settings
