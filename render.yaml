@@ -16,7 +16,8 @@ services:
       - key: HOST
         value: 0.0.0.0
       - key: ALLOW_UNAUTHENTICATED_HTTP
-        value: "false"
+        # Optional. Set true only for local/dev testing.
+        sync: false
       # Render injects PORT automatically; server.py reads it.
       - key: MCP_ACCESS_TOKEN
         # Required when MCP_AUTH_MODE=static (default). Leave empty only for oauth/none.
@@ -30,7 +31,8 @@ services:
       - key: TELEGRAM_USER_ID
         sync: false
       - key: ENABLE_TELEGRAM_ALERTS
-        value: "false"
+        # Optional. Set true to enable Telegram alert sends.
+        sync: false
       - key: PORTFOLIO_FILE
         sync: false
       - key: OLLAMA_HOST
@@ -60,7 +62,8 @@ services:
       - key: MCP_RESOURCE_SERVER_URL
         sync: false
       - key: OAUTH_BROKER_ENABLED
-        value: "false"
+        # Optional. Set true when using built-in OAuth broker.
+        sync: false
       - key: OAUTH_BROKER_ISSUER_URL
         sync: false
       - key: OAUTH_BROKER_CLIENT_ID
