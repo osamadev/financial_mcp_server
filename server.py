@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
-MCP_AUTH_MODE = os.getenv("MCP_AUTH_MODE", "static").lower()
+MCP_AUTH_MODE = (os.getenv("MCP_AUTH_MODE", "static").strip().lower() or "static")
 MCP_ACCESS_TOKEN = os.getenv("MCP_ACCESS_TOKEN", "").strip()
 OAUTH_ISSUER_URL = os.getenv("OAUTH_ISSUER_URL", "").strip()
 OAUTH_JWKS_URL = os.getenv("OAUTH_JWKS_URL", "").strip()

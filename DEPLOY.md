@@ -52,9 +52,13 @@ Runs one always-on replica with sticky sessions (small steady cost, not scale-to
 1. Click **Deploy to Render**.
 2. Connect the repo; Render applies `render.yaml` (Docker, `streamable-http`).
 3. Render health checks use `GET /health` (public endpoint) instead of probing `/mcp`.
-4. **Important:** default Render auth is `MCP_AUTH_MODE=static`; `MCP_ACCESS_TOKEN` is required or startup fails.
-5. When prompted, set `MCP_ACCESS_TOKEN` (static mode) and optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`, and `OAUTH_BROKER_*`.
-6. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
+4. Set `MCP_AUTH_MODE` explicitly in Render:
+   - `static` (requires `MCP_ACCESS_TOKEN`)
+   - `oauth` (leave `MCP_ACCESS_TOKEN` empty)
+   - `none` (not recommended for public deployments)
+5. If `MCP_AUTH_MODE=static`, `MCP_ACCESS_TOKEN` is required or startup fails.
+6. When prompted, set optional `SERPAPI_API_KEY`, `ALPHA_VANTAGE_API_KEY`, Telegram vars, `ENABLE_TELEGRAM_ALERTS`, `PORTFOLIO_FILE`, `OLLAMA_*`, `OPENAI_*`, and `OAUTH_BROKER_*`.
+7. For **OAuth**, open the service → **Environment** and add variables from [Backend env (OAuth)](#backend-env-oauth) below.
 
 Render OAuth example:
 - `MCP_AUTH_MODE=oauth`

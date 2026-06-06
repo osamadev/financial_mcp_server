@@ -10,7 +10,9 @@ services:
       - key: MCP_TRANSPORT
         value: streamable-http
       - key: MCP_AUTH_MODE
-        value: static
+        # static | oauth | none
+        # If static, MCP_ACCESS_TOKEN is required.
+        sync: false
       - key: LOG_LEVEL
         value: INFO
       - key: HOST
