@@ -540,10 +540,13 @@ if __name__ == "__main__":
         if MCP_AUTH_MODE == "static" and not MCP_ACCESS_TOKEN:
             raise RuntimeError("MCP_ACCESS_TOKEN is required when MCP_AUTH_MODE=static.")
         if MCP_AUTH_MODE == "oauth" and (
-            not OAUTH_ISSUER_URL or not OAUTH_AUDIENCE or not MCP_RESOURCE_SERVER_URL
+            not OAUTH_ISSUER_URL
+            or not OAUTH_AUDIENCE
+            or not RESOLVED_MCP_RESOURCE_SERVER_URL
         ):
             raise RuntimeError(
-                "OAuth mode requires OAUTH_ISSUER_URL, OAUTH_AUDIENCE, and MCP_RESOURCE_SERVER_URL."
+                "OAuth mode requires OAUTH_ISSUER_URL, OAUTH_AUDIENCE, and "
+                "MCP_RESOURCE_SERVER_URL (or RENDER_EXTERNAL_URL on Render)."
             )
 
     logger.info(
